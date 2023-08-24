@@ -18,18 +18,6 @@
     - 過去のvol03,04での試行をまとめたもの．経緯や制作意図も含めてこのREADMEより詳細なことが書いているので，むしろそちらを確認してほしい
 - create_csv.py
     - 今回は不要．sobiフォルダにスプレッドシートをcsvにして出力するためのもの(今はスプレッドシートから直接datafreamにしている)
-- sobi 
-    - databaseの保管場所(だった)
-    - 中身
-        - ksr_accesary.csv
-        - ksr_weapon.csv
-        - ksr_armor.csv
-        - ssr_accesary.csv
-        - ssr_weapon.csv
-        - ssr_armor.csv
-        - ability-category.csv #装備を検索するためのカテゴリをまとめたもの
-- test.ipynb
-    - 私がバグ検証等に使っていた作業ファイル．邪魔なら消してください
     
 #streamlitの起動の仕方
 
