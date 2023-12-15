@@ -69,7 +69,7 @@ if submit_btn1 == "絞る":
     if ksr or ssr:
         rare_filter = df['レアリティ'].isin(rare_list)
         output = df[rare_filter]
-        
+        df_status = df_status[rare_filter]
 submit_btn2 = st.radio("ステータス", ("絞る", "絞らない"), index=1,key=22)
 
 status = True
