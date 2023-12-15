@@ -5,7 +5,7 @@ import gspread
 from oauth2client.service_account import ServiceAccountCredentials
 import oauth2client
 
-@st.cache_data
+@st.cache_resource
 def load_data(sheet_name):
     # サービスアカウントキーのJSONファイルへのパス
     json_keyfile = 'ryuon-equipment-38a59fa0f789.json'
@@ -50,7 +50,7 @@ df_status = df_reloaded.copy()
 #本番output,df_statusで置き換えることで,Noneが出力しないようにしてる
 df_status.replace("" ,np.nan ,inplace=True)
 
-submit_btn1 = st.radio("レアリティ", ("絞る", "絞らない"), index=1)
+submit_btn1 = st.radio("レアリティ", ("絞る", "絞らない"), index=1,key=21)
 
 rare_filter = None
 rare_list = []
@@ -70,7 +70,7 @@ if submit_btn1 == "絞る":
         rare_filter = df['レアリティ'].isin(rare_list)
         output = df[rare_filter]
         
-submit_btn2 = st.radio("ステータス", ("絞る", "絞らない"), index=1)
+submit_btn2 = st.radio("ステータス", ("絞る", "絞らない"), index=1,key=22)
 
 status = True
 if submit_btn2 == "絞る":
@@ -109,7 +109,7 @@ if submit_btn2 == "絞る":
     if hp or attack or defense or critical or avoidance or hit:
         output = output[status]
 
-submit_btn3 = st.radio("アビリティ", ("絞る", "絞らない"), index=1)
+submit_btn3 = st.radio("アビリティ", ("絞る", "絞らない"), index=1,key=23)
 #アビリティフィルタ
 # アビリティ名のリストを作成
 ability_name_list = df_category['アビリティカテゴリ分類'].unique()
