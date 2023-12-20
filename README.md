@@ -13,6 +13,7 @@
             - 言うまでもありませんがこのページに頼ることなく解決したいです．weapon,armor,accesaryにうまく取り入れてみたいがスプレッドシートを読み込んだキャッシュごと削除してしまったため断念
 - ryuon-equipment-38a59fa0f789.json
     - 流用禁止，スプレッドシートにアクセスし，sobiフォルダのcsvを更新するためのもの．今は直接読み取るために使っている
+
 - requirements.txt
     - Streamlit Cloudに公開するために必要なライブラリとバージョンそのバージョンをまとめたファイル
     
@@ -35,7 +36,7 @@
         - ability-category.csv #装備を検索するためのカテゴリをまとめたもの
 - test.ipynb
     - 私がバグ検証等に使っていた作業ファイル．邪魔なら消してください
-    
+
 #streamlitの起動の仕方
 
 'ryuon_sobi_streamlit_vol06'のディレクトリ内で以下のコードを実行するとローカルでStreamlit
@@ -83,4 +84,31 @@ streamlit run weapon.py
     - cache_clearを使う
         - 同じファイル内でcache_clearを使うとせっかくスプレッドシートのロードを解消するためのキャッシュまで削除されてしまった
         - そのため,表示バグったらなんか解決するページ.pyを作って,表示がバグを起こした際に遷移したら改善できるようにしたが不恰好すぎる
+
+```
+streamlit run weapon.py
+```
+
+- バージョンの環境によって動かない場合，仮想環境に作って対処する方法を記す
+    - 仮想環境の生成(myenvのところはすきな名前で)
+      ```
+      python -m venv myenv
+      ```
+    - 仮想環境のアクティベート(macOSの場合)
+      ```
+      source myenv/bin/activate
+      ```
+    - 仮想環境のアクティベート(Windowsの場合)
+      ```
+      myenv\Scripts\activate
+      ```
+    - 必要なパッケージをインストール(requirements.txtにもう記述してます)
+      ```
+      pip install -r requirements.txt
+      ```
+    - 出る時
+      ```
+      deactivate
+      ```
+
                     
