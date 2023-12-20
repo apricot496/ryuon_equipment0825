@@ -2,21 +2,21 @@ import streamlit as st
 import pandas as pd
 import numpy as np
 import gspread
-from oauth2client.service_account import ServiceAccountCredentials
-import oauth2client
+from google.oauth2 import service_account
+
 
 @st.cache_resource
 def load_data(sheet_name):
-    # サービスアカウントキーのJSONファイルへのパス
-    json_keyfile = 'ryuon-equipment-38a59fa0f789.json'
 
     # 認証情報の設定
-    scope = ['https://spreadsheets.google.com/feeds', 'https://www.googleapis.com/auth/drive']
-    credentials = ServiceAccountCredentials.from_json_keyfile_name(json_keyfile, scope)
+    #scope = ['https://spreadsheets.google.com/feeds', 'https://www.googleapis.com/auth/drive']
+    credentials = service_account.Credentials.from_service_account_info( st.secrets["gcp_service_account"], scopes=[ "https://www.googleapis.com/auth/spreadsheets", ],
+)
+
     gc = gspread.authorize(credentials)
 
     # スプレッドシートを開く
-    spreadsheet_key = '1LZiE6wf8VTwFoVxeEBTx3OXOKx6vQA5IaItE7NQYZTs'
+    spreadsheet_key = st.secrets['spreadsheet_key_name']
     worksheet_ksr = gc.open_by_key(spreadsheet_key).worksheet('ksr'+sheet_name)
     worksheet_ssr = gc.open_by_key(spreadsheet_key).worksheet('ssr'+sheet_name)
     worksheet_category = gc.open_by_key(spreadsheet_key).worksheet('ability-category')
@@ -70,6 +70,7 @@ if submit_btn1 == "絞る":
         rare_filter = df['レアリティ'].isin(rare_list)
         output = df[rare_filter]
         df_status = df_status[rare_filter]
+
 submit_btn2 = st.radio("ステータス", ("絞る", "絞らない"), index=1,key=22)
 
 status = True
