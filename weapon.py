@@ -6,7 +6,7 @@ from google.oauth2 import service_account
 
 
 # ページのタイトルとアイコンを設定
-st.set_page_config(page_title="Ryuon_Apricot_Equipmentdata")
+# st.set_page_config(page_title="Ryuon_Apricot_Equipmentdata")
 
 
 @st.cache_resource
