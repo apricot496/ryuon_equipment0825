@@ -1,4 +1,4 @@
-Streamlit == 1.23.1
+Streamlit == 1.7
 Pandas == 2.0.2
 numpy == 1.24.3
 gspread == 5.10.0
