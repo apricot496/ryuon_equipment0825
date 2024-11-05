@@ -21,22 +21,25 @@ def load_data(sheet_name):
 
     # スプレッドシートを開く
     spreadsheet_key = st.secrets['spreadsheet_key_name']
+    worksheet_ur = gc.open_by_key(spreadsheet_key).worksheet('ur'+sheet_name)
     worksheet_ksr = gc.open_by_key(spreadsheet_key).worksheet('ksr'+sheet_name)
     worksheet_ssr = gc.open_by_key(spreadsheet_key).worksheet('ssr'+sheet_name)
     worksheet_category = gc.open_by_key(spreadsheet_key).worksheet('ability-category')
 
     # シートデータの読み込み
+    data_ur = worksheet_ur.get_all_records()
     data_ksr = worksheet_ksr.get_all_records()
     data_ssr = worksheet_ssr.get_all_records()
     data_category = worksheet_category.get_all_records()
 
     # 辞書のリストからDataFrameに変換
+    df_ur = pd.DataFrame(data_ur)
     df_ksr = pd.DataFrame(data_ksr)
     df_ssr = pd.DataFrame(data_ssr)
     df_category = pd.DataFrame(data_category)
 
     # シートデータを結合して1つのDataFrameにする
-    df = pd.concat([df_ksr, df_ssr])
+    df = pd.concat([df_ur, df_ksr, df_ssr])
 
     return df,df_category
 
@@ -61,16 +64,19 @@ rare_list = []
 
 if submit_btn1 == "絞る":
     # check box
-    col = st.columns(2)
-    ksr = col[0].checkbox(label='KSR')
-    ssr = col[1].checkbox(label='SSR')
+    col = st.columns(3)
+    ur = col[0].checkbox(label='UR')
+    ksr = col[1].checkbox(label='KSR')
+    ssr = col[2].checkbox(label='SSR')
 
+    if ur:
+        rare_list.append('UR')
     if ksr:
         rare_list.append('KSR')
     if ssr:
         rare_list.append('SSR')
     # 条件が選択されている場合だけ、outputを条件に合致するレコードだけのDFに置き換える
-    if ksr or ssr:
+    if ur or ksr or ssr:
         rare_filter = df['レアリティ'].isin(rare_list)
         output = df[rare_filter]
         df_status = df_status[rare_filter]
@@ -132,7 +138,7 @@ if submit_btn3 == "絞る":
     
 # outputが空でないならソートを実行
 if not output.empty:
-    output = output.sort_values('装備番号')
+    # output = output.sort_values('装備番号')
     output = output.reset_index(drop=True)  # インデックスをリセット
     output = output.drop(columns =['装備番号','レアリティ','アビリティカテゴリ'])
 
