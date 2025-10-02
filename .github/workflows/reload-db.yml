@@ -21,7 +21,6 @@ jobs:
       - name: Install dependencies
         run: pip install -r requirements.txt
       - name: Write .env file
-
         run: echo "${{ secrets.ENV_FILE }}" > .env
       - name: Reload Sheets to DB
         env:
