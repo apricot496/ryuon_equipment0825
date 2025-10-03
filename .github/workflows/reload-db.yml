@@ -1,14 +1,6 @@
 name: Reload Sheets to DB
 
 on:
-  push:
-    branches:
-      - gha_issue_*   # このブランチに push されたとき動作
-      - main          # このブランチに push されたとき動作
-  pull_request:
-    branches:
-      - gha_issue_*   # このブランチに PR が来たとき動作
-      - main          # このブランチに PR が来たとき動作
   workflow_dispatch:     # 手動実行
   schedule:
     - cron: "0 */3 * * *"   # 3時間ごとに実行 (UTC基準)
