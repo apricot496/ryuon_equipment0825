@@ -5,6 +5,7 @@ import pandas as pd
 import gspread
 from google.oauth2 import service_account
 from dotenv import load_dotenv
+from datetime import datetime
 
 DB_FILE = "equipment.db"
 SHEET_NAMES = [
@@ -58,7 +59,6 @@ def cast_dataframe(sheet_name: str, df: pd.DataFrame) -> pd.DataFrame:
         for col in ["体力", "攻撃力", "防御力"]:
             if col in df.columns:
                 df[col] = pd.to_numeric(df[col], errors="coerce")
-                # 小数が混じっていないかチェック
                 if (df[col].dropna() % 1 != 0).any():
                     raise ValueError(f"{sheet_name} の {col} 列に小数が含まれています。修正してください。")
                 df[col] = df[col].astype("Int64")
@@ -74,6 +74,31 @@ def save_to_db(sheet_name: str, df: pd.DataFrame, conn: sqlite3.Connection):
     df.to_sql(sheet_name, conn, if_exists="replace", index=False)
     print(f"✅ {sheet_name} を保存しました")
 
+def insert_log(conn: sqlite3.Connection, row_counts: dict, commit_message: str):
+    """logテーブルに1行追加"""
+    columns = ["updated_at", "commit_message"] + SHEET_NAMES
+    placeholders = ",".join(["?"] * len(columns))
+    values = [
+        datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+        commit_message,
+    ] + [row_counts.get(sheet, 0) for sheet in SHEET_NAMES]
+
+    conn.execute(
+        f"""
+        CREATE TABLE IF NOT EXISTS load_log (
+            updated_at TEXT,
+            commit_message TEXT,
+            {", ".join([f'"{s}" INTEGER' for s in SHEET_NAMES])}
+        )
+        """
+    )
+    conn.execute(
+        f"INSERT INTO load_log ({','.join(columns)}) VALUES ({placeholders})",
+        values,
+    )
+    conn.commit()
+    print("📝 ログを追加しました")
+
 def main():
     creds_info, spreadsheet_key = load_credentials_and_key()
     scope = ["https://www.googleapis.com/auth/spreadsheets"]
@@ -83,6 +108,7 @@ def main():
     gc = gspread.authorize(credentials)
 
     conn = sqlite3.connect(DB_FILE)
+    row_counts = {}
 
     for sheet in SHEET_NAMES:
         print(f"{sheet} を読み込み中...")
@@ -91,9 +117,16 @@ def main():
         df = pd.DataFrame(data)
         df = cast_dataframe(sheet, df)
         save_to_db(sheet, df, conn)
+        row_counts[sheet] = len(df)
+
+    # コミットメッセージを取得（無ければ "manual run"）
+    commit_message = os.getenv("GIT_COMMIT_MESSAGE", "local run")
+
+    # ログテーブル更新
+    insert_log(conn, row_counts, commit_message)
 
     conn.close()
-    print(f"🎉 全シートを {DB_FILE} に保存しました")
+    print(f"🎉 全シートを {DB_FILE} に保存 & ログ更新しました")
 
 if __name__ == "__main__":
     main()

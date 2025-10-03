@@ -45,6 +45,7 @@ jobs:
           GCP_AUTH_PROVIDER_CERT_URL: ${{ secrets.GCP_AUTH_PROVIDER_CERT_URL }}
           GCP_CLIENT_CERT_URL: ${{ secrets.GCP_CLIENT_CERT_URL }}
           GCP_UNIVERSE_DOMAIN: ${{ secrets.GCP_UNIVERSE_DOMAIN }}
+          GITHUB_COMMIT_MESSAGE: "Auto update from GitHub Actions"
         run: python reload_ss_to_db.py
 
       - name: Commit and Push DB

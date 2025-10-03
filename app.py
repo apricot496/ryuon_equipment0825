@@ -1,6 +1,7 @@
 import streamlit as st
 import pandas as pd
 import sqlite3
+from datetime import datetime, timezone, timedelta
 
 # ページのタイトルとアイコンを設定
 st.set_page_config(page_title="Ryuon_Apricot_Equipmentdata")
@@ -214,9 +215,25 @@ def equipments_status_sum(final_selected_weapon,final_selected_armor,final_selec
         for final_selected_equipment in final_selected_equipment_list:
             st.write(f'{final_selected_equipment[6][1]}')
 
+def reload_time():
+    """DBのlogテーブルから最新更新日時を取得（日本時刻）"""
+    conn = sqlite3.connect(DB_FILE)
+    cur = conn.cursor()
+    cur.execute("SELECT updated_at FROM load_log ORDER BY updated_at DESC LIMIT 1")
+    row = cur.fetchone()
+    conn.close()
+
+    if row and row[0]:
+        # UTCで保存されていると仮定し JSTに変換
+        utc_dt = datetime.strptime(row[0], "%Y-%m-%d %H:%M:%S").replace(tzinfo=timezone.utc)
+        jst_dt = utc_dt.astimezone(timezone(timedelta(hours=9)))
+        return jst_dt.strftime("%Y-%m-%d %H:%M:%S")
+    else:
+        return "更新記録なし"
 
 def main():
     st.write('# 龍オン装備検索アプリケーション')
+    st.write('データ最終更新日時：', reload_time())
     weapon_df, armor_df, accesory_df, category_df = load_data()
     
     with st.sidebar.expander("### 検索フィルタ", expanded=True):
