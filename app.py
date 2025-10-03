@@ -219,14 +219,12 @@ def reload_time():
     """DBのlogテーブルから最新更新日時を取得（日本時刻）"""
     conn = sqlite3.connect(DB_FILE)
     cur = conn.cursor()
-    cur.execute("SELECT updated_at FROM load_log ORDER BY updated_at DESC LIMIT 1")
+    cur.execute("SELECT 更新日時 FROM load_log ORDER BY 更新日時 DESC LIMIT 1")
     row = cur.fetchone()
     conn.close()
 
     if row and row[0]:
-        # UTCで保存されていると仮定し JSTに変換
-        utc_dt = datetime.strptime(row[0], "%Y-%m-%d %H:%M:%S").replace(tzinfo=timezone.utc)
-        jst_dt = utc_dt.astimezone(timezone(timedelta(hours=9)))
+        jst_dt = datetime.strptime(row[0], "%Y-%m-%d %H:%M:%S").replace(tzinfo=timezone.utc)
         return jst_dt.strftime("%Y-%m-%d %H:%M:%S")
     else:
         return "更新記録なし"
