@@ -5,7 +5,7 @@ import pandas as pd
 import gspread
 from google.oauth2 import service_account
 from dotenv import load_dotenv
-from datetime import datetime
+from datetime import datetime, timezone, timedelta
 
 DB_FILE = "equipment.db"
 SHEET_NAMES = [
@@ -14,6 +14,7 @@ SHEET_NAMES = [
     "ssr武器", "ssr防具", "ssr装飾",
     "ability-category"
 ]
+JST = timezone(timedelta(hours=9))
 
 def load_credentials_and_key():
     """ローカルなら .env から、GitHub Actions なら Secrets から読み込む"""
