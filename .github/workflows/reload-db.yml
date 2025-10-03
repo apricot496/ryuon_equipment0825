@@ -54,4 +54,5 @@ jobs:
           now=$(date '+%Y-%m-%d %H:%M:%S')
           git add equipment.db
           git commit -m "[$now] equipment.db 更新" || echo "No changes to commit"
-          git push origin HEAD:${GITHUB_REF#refs/heads/}
+          git push https://x-access-token:${GITHUB_TOKEN}@github.com/${{ github.repository }} HEAD:${GITHUB_REF#refs/heads/}
+
