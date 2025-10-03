@@ -74,30 +74,21 @@ def save_to_db(sheet_name: str, df: pd.DataFrame, conn: sqlite3.Connection):
     df.to_sql(sheet_name, conn, if_exists="replace", index=False)
     print(f"✅ {sheet_name} を保存しました")
 
-def insert_log(conn: sqlite3.Connection, row_counts: dict, commit_message: str):
-    """logテーブルに1行追加"""
-    columns = ["updated_at", "commit_message"] + SHEET_NAMES
-    placeholders = ",".join(["?"] * len(columns))
-    values = [
-        datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-        commit_message,
-    ] + [row_counts.get(sheet, 0) for sheet in SHEET_NAMES]
+def insert_log(conn, row_counts: dict, commit_message: str):
+    now = datetime.now(JST).strftime("%Y-%m-%d %H:%M:%S")
+    columns = ["更新日時", "コミットメッセージ"] + SHEET_NAMES
+    values = [now, commit_message] + [row_counts.get(sheet, 0) for sheet in SHEET_NAMES]
+
+    # カラム名をハイフン→アンダースコアに変換
+    safe_columns = [c.replace("-", "_") for c in columns]
 
     conn.execute(
-        f"""
-        CREATE TABLE IF NOT EXISTS load_log (
-            updated_at TEXT,
-            commit_message TEXT,
-            {", ".join([f'"{s}" INTEGER' for s in SHEET_NAMES])}
-        )
-        """
-    )
-    conn.execute(
-        f"INSERT INTO load_log ({','.join(columns)}) VALUES ({placeholders})",
+        f"INSERT INTO load_log ({','.join(safe_columns)}) VALUES ({','.join(['?']*len(values))})",
         values,
     )
     conn.commit()
-    print("📝 ログを追加しました")
+    print("📝 ログを記録しました")
+
 
 def main():
     creds_info, spreadsheet_key = load_credentials_and_key()
