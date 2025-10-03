@@ -1,0 +1,49 @@
+name: Reload Sheets to DB
+
+on:
+  push:
+    branches:
+      - gha_issue_*   # このブランチに push されたとき動作
+      - main   # このブランチに push されたとき動作
+  pull_request:
+    branches:
+      - gha_issue_*  # このブランチに PR が来たとき動作
+      - main  # このブランチに PR が来たとき動作
+  workflow_dispatch:     # 手動実行
+  schedule:
+    - cron: "0 */3 * * *"   # 3時間ごとに実行 (UTC基準)
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+        with:
+          persist-credentials: false   # 手動でgit pushするため
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+      - name: Write .env file
+        run: echo "${{ secrets.ENV_FILE }}" > .env
+      - name: Write service account key
+        run: echo "${{ secrets.GCP_SERVICE_ACCOUNT }}" > sa.json
+      - name: Reload Sheets to DB
+        env:
+          STREAMLIT_SECRETS: ${{ secrets.STREAMLIT_SECRETS }}
+        run: python reload_ss_to_db.py
+
+      - name: Commit and Push DB
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+          now=$(date '+%Y-%m-%d %H:%M:%S')
+          git add equipment.db
+          git commit -m "[$now] equipment.db 更新" || echo "No changes to commit"
+          git push origin HEAD:${GITHUB_REF#refs/heads/}
