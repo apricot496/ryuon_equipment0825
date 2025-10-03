@@ -28,6 +28,8 @@ jobs:
         run: pip install -r requirements.txt
       - name: Write .env file
         run: echo "${{ secrets.ENV_FILE }}" > .env
+      - name: Write service account key
+        run: echo "${{ secrets.GCP_SERVICE_ACCOUNT }}" > sa.json
       - name: Reload Sheets to DB
         env:
           STREAMLIT_SECRETS: ${{ secrets.STREAMLIT_SECRETS }}

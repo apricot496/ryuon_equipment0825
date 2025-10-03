@@ -1,84 +1,88 @@
 import os
-import gspread
+import json
 import sqlite3
 import pandas as pd
+import gspread
 from google.oauth2 import service_account
 from dotenv import load_dotenv
 
-def load_secrets():
-    load_dotenv()
+DB_FILE = "equipment.db"
+SHEET_NAMES = [
+    "ur武器", "ur防具", "ur装飾",
+    "ksr武器", "ksr防具", "ksr装飾",
+    "ssr武器", "ssr防具", "ssr装飾",
+    "ability-category"
+]
 
-    creds_info = {
-        "type": os.getenv("GCP_TYPE"),
-        "project_id": os.getenv("GCP_PROJECT_ID"),
-        "private_key_id": os.getenv("GCP_PRIVATE_KEY_ID"),
-        "private_key": os.getenv("GCP_PRIVATE_KEY").replace("\\n", "\n"),
-        "client_email": os.getenv("GCP_CLIENT_EMAIL"),
-        "client_id": os.getenv("GCP_CLIENT_ID"),
-        "auth_uri": os.getenv("GCP_AUTH_URI"),
-        "token_uri": os.getenv("GCP_TOKEN_URI"),
-        "auth_provider_x509_cert_url": os.getenv("GCP_AUTH_PROVIDER_CERT_URL"),
-        "client_x509_cert_url": os.getenv("GCP_CLIENT_CERT_URL"),
-        "universe_domain": os.getenv("GCP_UNIVERSE_DOMAIN")
-    }
-    spreadsheet_key = os.getenv("SPREADSHEET_KEY_NAME")
+def load_credentials_and_key():
+    """ローカルなら .env から、GitHub Actions なら Secrets から読み込む"""
+    if os.getenv("GITHUB_ACTIONS") == "true":
+        # GitHub Actions 環境
+        creds_info = json.loads(os.environ["GCP_SERVICE_ACCOUNT"])
+        spreadsheet_key = os.environ["SPREADSHEET_KEY_NAME"]
+    else:
+        # ローカル環境
+        load_dotenv()
+        spreadsheet_key = os.getenv("SPREADSHEET_KEY_NAME")
+        creds_info = {
+            "type": os.getenv("GCP_TYPE"),
+            "project_id": os.getenv("GCP_PROJECT_ID"),
+            "private_key_id": os.getenv("GCP_PRIVATE_KEY_ID"),
+            "private_key": os.getenv("GCP_PRIVATE_KEY").replace("\\n", "\n"),
+            "client_email": os.getenv("GCP_CLIENT_EMAIL"),
+            "client_id": os.getenv("GCP_CLIENT_ID"),
+            "auth_uri": os.getenv("GCP_AUTH_URI"),
+            "token_uri": os.getenv("GCP_TOKEN_URI"),
+            "auth_provider_x509_cert_url": os.getenv("GCP_AUTH_PROVIDER_CERT_URL"),
+            "client_x509_cert_url": os.getenv("GCP_CLIENT_CERT_URL"),
+            "universe_domain": os.getenv("GCP_UNIVERSE_DOMAIN"),
+        }
 
     return creds_info, spreadsheet_key
 
-
 def cast_dataframe(sheet_name: str, df: pd.DataFrame) -> pd.DataFrame:
-    """シートごとに型を揃える"""
+    """列の型変換。int列に小数が混じっていたらエラー"""
     if sheet_name != "ability-category":
-        # 数値列を強制変換
-        if "体力" in df.columns:
-            df["体力"] = pd.to_numeric(df["体力"], errors="coerce").astype("Int64")
-        if "攻撃力" in df.columns:
-            df["攻撃力"] = pd.to_numeric(df["攻撃力"], errors="coerce").astype("Int64")
-        if "防御力" in df.columns:
-            df["防御力"] = pd.to_numeric(df["防御力"], errors="coerce").astype("Int64")
+        # int列
+        for col in ["体力", "攻撃力", "防御力"]:
+            if col in df.columns:
+                df[col] = pd.to_numeric(df[col], errors="coerce")
+                # 小数が混じっていないかチェック
+                if (df[col].dropna() % 1 != 0).any():
+                    raise ValueError(f"{sheet_name} の {col} 列に小数が含まれています。修正してください。")
+                df[col] = df[col].astype("Int64")
 
+        # float列
         for col in ["会心率", "回避率", "命中率"]:
             if col in df.columns:
                 df[col] = pd.to_numeric(df[col], errors="coerce").round(1)
+
     return df
 
+def save_to_db(sheet_name: str, df: pd.DataFrame, conn: sqlite3.Connection):
+    df.to_sql(sheet_name, conn, if_exists="replace", index=False)
+    print(f"✅ {sheet_name} を保存しました")
 
 def main():
-    creds_info, spreadsheet_key = load_secrets()
-
-    scope = ["https://www.googleapis.com/auth/spreadsheets",
-             "https://www.googleapis.com/auth/drive"]
+    creds_info, spreadsheet_key = load_credentials_and_key()
+    scope = ["https://www.googleapis.com/auth/spreadsheets"]
     credentials = service_account.Credentials.from_service_account_info(
         creds_info, scopes=scope
     )
     gc = gspread.authorize(credentials)
 
-    db_name = "equipment.db"
-    conn = sqlite3.connect(db_name)
+    conn = sqlite3.connect(DB_FILE)
 
-    sheet_names = [
-        "ur武器", "ur防具", "ur装飾",
-        "ksr武器", "ksr防具", "ksr装飾",
-        "ssr武器", "ssr防具", "ssr装飾",
-        "ability-category"
-    ]
-
-    for sheet in sheet_names:
-        print(f"▶ {sheet} を読み込み中...")
+    for sheet in SHEET_NAMES:
+        print(f"{sheet} を読み込み中...")
         worksheet = gc.open_by_key(spreadsheet_key).worksheet(sheet)
         data = worksheet.get_all_records()
         df = pd.DataFrame(data)
-
-        # 型変換
         df = cast_dataframe(sheet, df)
-
-        table_name = sheet.replace("-", "_")
-        df.to_sql(table_name, conn, if_exists="replace", index=False)
-        print(f"   → {table_name} テーブルに保存 (行数: {len(df)})")
+        save_to_db(sheet, df, conn)
 
     conn.close()
-    print(f"✅ 全シートを {db_name} に保存しました")
-
+    print(f"🎉 全シートを {DB_FILE} に保存しました")
 
 if __name__ == "__main__":
     main()
