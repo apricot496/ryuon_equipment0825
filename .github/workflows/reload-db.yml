@@ -4,11 +4,11 @@ on:
   push:
     branches:
       - gha_issue_*   # このブランチに push されたとき動作
-      - main   # このブランチに push されたとき動作
+      - main          # このブランチに push されたとき動作
   pull_request:
     branches:
-      - gha_issue_*  # このブランチに PR が来たとき動作
-      - main  # このブランチに PR が来たとき動作
+      - gha_issue_*   # このブランチに PR が来たとき動作
+      - main          # このブランチに PR が来たとき動作
   workflow_dispatch:     # 手動実行
   schedule:
     - cron: "0 */3 * * *"   # 3時間ごとに実行 (UTC基準)
@@ -16,6 +16,8 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write 
     steps:
       - uses: actions/checkout@v3
         with:
@@ -28,13 +30,21 @@ jobs:
 
       - name: Install dependencies
         run: pip install -r requirements.txt
-      - name: Write .env file
-        run: echo "${{ secrets.ENV_FILE }}" > .env
-      - name: Write service account key
-        run: echo "${{ secrets.GCP_SERVICE_ACCOUNT }}" > sa.json
+
       - name: Reload Sheets to DB
         env:
-          STREAMLIT_SECRETS: ${{ secrets.STREAMLIT_SECRETS }}
+          SPREADSHEET_KEY_NAME: ${{ secrets.SPREADSHEET_KEY_NAME }}
+          GCP_TYPE: ${{ secrets.GCP_TYPE }}
+          GCP_PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
+          GCP_PRIVATE_KEY_ID: ${{ secrets.GCP_PRIVATE_KEY_ID }}
+          GCP_PRIVATE_KEY: ${{ secrets.GCP_PRIVATE_KEY }}
+          GCP_CLIENT_EMAIL: ${{ secrets.GCP_CLIENT_EMAIL }}
+          GCP_CLIENT_ID: ${{ secrets.GCP_CLIENT_ID }}
+          GCP_AUTH_URI: ${{ secrets.GCP_AUTH_URI }}
+          GCP_TOKEN_URI: ${{ secrets.GCP_TOKEN_URI }}
+          GCP_AUTH_PROVIDER_CERT_URL: ${{ secrets.GCP_AUTH_PROVIDER_CERT_URL }}
+          GCP_CLIENT_CERT_URL: ${{ secrets.GCP_CLIENT_CERT_URL }}
+          GCP_UNIVERSE_DOMAIN: ${{ secrets.GCP_UNIVERSE_DOMAIN }}
         run: python reload_ss_to_db.py
 
       - name: Commit and Push DB
@@ -46,4 +56,5 @@ jobs:
           now=$(date '+%Y-%m-%d %H:%M:%S')
           git add equipment.db
           git commit -m "[$now] equipment.db 更新" || echo "No changes to commit"
-          git push origin HEAD:${GITHUB_REF#refs/heads/}
+          git push https://x-access-token:${GITHUB_TOKEN}@github.com/${{ github.repository }} HEAD:${GITHUB_REF#refs/heads/}
+

@@ -17,9 +17,20 @@ SHEET_NAMES = [
 def load_credentials_and_key():
     """ローカルなら .env から、GitHub Actions なら Secrets から読み込む"""
     if os.getenv("GITHUB_ACTIONS") == "true":
-        # GitHub Actions 環境
-        creds_info = json.loads(os.environ["GCP_SERVICE_ACCOUNT"])
         spreadsheet_key = os.environ["SPREADSHEET_KEY_NAME"]
+        creds_info = {
+            "type": os.environ["GCP_TYPE"],
+            "project_id": os.environ["GCP_PROJECT_ID"],
+            "private_key_id": os.environ["GCP_PRIVATE_KEY_ID"],
+            "private_key": os.environ["GCP_PRIVATE_KEY"].replace("\\n", "\n"),
+            "client_email": os.environ["GCP_CLIENT_EMAIL"],
+            "client_id": os.environ["GCP_CLIENT_ID"],
+            "auth_uri": os.environ["GCP_AUTH_URI"],
+            "token_uri": os.environ["GCP_TOKEN_URI"],
+            "auth_provider_x509_cert_url": os.environ["GCP_AUTH_PROVIDER_CERT_URL"],
+            "client_x509_cert_url": os.environ["GCP_CLIENT_CERT_URL"],
+            "universe_domain": os.environ["GCP_UNIVERSE_DOMAIN"],
+        }
     else:
         # ローカル環境
         load_dotenv()
