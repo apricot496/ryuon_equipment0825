@@ -1,55 +1,44 @@
 import streamlit as st
 import pandas as pd
-import numpy as np
-import gspread
-from google.oauth2 import service_account
+import sqlite3
 
 # ページのタイトルとアイコンを設定
 st.set_page_config(page_title="Ryuon_Apricot_Equipmentdata")
 
+DB_FILE = "equipment.db"
+
 @st.cache_resource
 def load_data():
-    # 認証情報の設定
-    #scope = ['https://spreadsheets.google.com/feeds', 'https://www.googleapis.com/auth/drive']
-    credentials = service_account.Credentials.from_service_account_info( st.secrets["gcp_service_account"], scopes=[ "https://www.googleapis.com/auth/spreadsheets", ],
-)
-    equipments_list = ['武器','防具','装飾']
-    df_list =[]
-    
-    gc = gspread.authorize(credentials)
-    for sheet_name in equipments_list:
-        # スプレッドシートを開く
-        spreadsheet_key = st.secrets['spreadsheet_key_name']
-        worksheet_ur = gc.open_by_key(spreadsheet_key).worksheet('ur'+sheet_name)
-        worksheet_ksr = gc.open_by_key(spreadsheet_key).worksheet('ksr'+sheet_name)
-        worksheet_ssr = gc.open_by_key(spreadsheet_key).worksheet('ssr'+sheet_name)
+    """SQLite DB からデータを読み込む"""
+    conn = sqlite3.connect(DB_FILE)
 
-        # シートデータの読み込み
-        data_ur = worksheet_ur.get_all_records()
-        data_ksr = worksheet_ksr.get_all_records()
-        data_ssr = worksheet_ssr.get_all_records()
+    equipments_list = ["武器", "防具", "装飾"]
+    rarelity_order = ['ur', 'ksr', 'ssr']
+    df_list = []
 
-        # 辞書のリストからDataFrameに変換
-        df_ur = pd.DataFrame(data_ur)
-        df_ksr = pd.DataFrame(data_ksr)
-        df_ssr = pd.DataFrame(data_ssr)
-        
-        df = pd.concat([df_ur, df_ksr, df_ssr],ignore_index=True)
-        df =df.replace('',np.nan)
+    for equipments in equipments_list:
+        equipment_df_concat_list = []
+        for  rarelity in rarelity_order:
+            sheet_name = f"{rarelity}{equipments}"
+            df = pd.read_sql(f"SELECT * FROM '{sheet_name}'", conn)
+            equipment_df_concat_list.append(df)
+        df = pd.concat(equipment_df_concat_list, ignore_index=True)
+        df = df.replace('', pd.NA)
         df['check'] = False
         # チェック列を一番左に移動
         columns = ['check'] + [col for col in df.columns if col != 'check']
         df = df[columns]
         df['アビリティカテゴリ'] = df['アビリティカテゴリ'].fillna('アビリティなし')
-        # シートデータを結合して1つのDataFrameにする
         df_list.append(df)
-    
-    worksheet_category = gc.open_by_key(spreadsheet_key).worksheet('ability-category')
-    data_category = worksheet_category.get_all_records()
-    df_category = pd.DataFrame(data_category)
+
+    # アビリティカテゴリ
+    df_category = pd.read_sql("SELECT * FROM 'ability-category'", conn)
     df_nan = pd.DataFrame({'アビリティカテゴリ分類': ['アビリティなし']})
-    df_category = pd.concat([df_category,df_nan])
-    return df_list[0],df_list[1],df_list[2],df_category
+    df_category = pd.concat([df_category, df_nan])
+
+    conn.close()
+    return df_list[0], df_list[1], df_list[2], df_category
+
 
 def rarity_select_list_ui():
     rarity_list = ['UR', 'KSR', 'SSR']
