@@ -2,3 +2,4 @@
 .DS_Store
 myenv/
 .env
+equipment.db
