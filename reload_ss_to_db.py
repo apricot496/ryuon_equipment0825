@@ -112,7 +112,7 @@ def main():
         row_counts[sheet] = len(df)
 
     # コミットメッセージを取得（無ければ "manual run"）
-    commit_message = os.getenv("GIT_COMMIT_MESSAGE", "local run")
+    commit_message = os.getenv("GITHUB_COMMIT_MESSAGE", "local run")
 
     # ログテーブル更新
     insert_log(conn, row_counts, commit_message)
