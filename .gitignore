@@ -2,7 +2,6 @@
 .DS_Store
 myenv/
 .env
-equipment.db
 mock/
 equipment_json_list/
 

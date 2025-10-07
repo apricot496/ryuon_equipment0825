@@ -41,10 +41,10 @@ jobs:
         run: python reload_ss_to_db.py
 
       - name: Scrape Equipment Data
-        timeout-minutes: 10
         env:
           NOW_BRANCH: ${{ github.ref_name }}   # 実行時のブランチ名を渡す
-        run: python scraping_equipment.py
+        run: |
+          timeout -k 5s 100s python scraping_equipment.py || true
 
       - name: Commit and Push DB
         env:

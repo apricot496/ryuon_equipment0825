@@ -240,4 +240,4 @@ if __name__ == "__main__":
         else:
             insert_to_db([{"URL_Number": num}])
             print(f"空登録: {num}")
-        time.sleep(1)
+        time.sleep(0.5)

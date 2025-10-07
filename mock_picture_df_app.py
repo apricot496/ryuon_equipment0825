@@ -5,8 +5,8 @@ df = pd.DataFrame({
     "id": [1, 2],
     "description": ["a の画像", "b の画像"],
     "img": [
-        "https://raw.githubusercontent.com/apricot496/ryuon_equipment0825/issue_006/static/a.jpg", 
-        "https://raw.githubusercontent.com/apricot496/ryuon_equipment0825/issue_006/static/b.jpg"
+        "https://raw.githubusercontent.com/apricot496/ryuon_equipment0825/main/static/カムロップステッキ_SSR.png", 
+        "https://raw.githubusercontent.com/apricot496/ryuon_equipment0825/main/static/カムロップヘルム_SSR.png"
     ]
 })
 
