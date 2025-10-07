@@ -40,6 +40,11 @@ jobs:
           GITHUB_COMMIT_MESSAGE: "Auto update from GitHub Actions"
         run: python reload_ss_to_db.py
 
+      - name: Scrape Equipment Data
+        env:
+          NOW_BRANCH: ${{ github.ref_name }}   # 実行時のブランチ名を渡す
+        run: python scraping_equipment.py
+
       - name: Commit and Push DB
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -50,4 +55,3 @@ jobs:
           git add equipment.db
           git commit -m "[$now] equipment.db 更新" || echo "No changes to commit"
           git push https://x-access-token:${GITHUB_TOKEN}@github.com/${{ github.repository }} HEAD:${GITHUB_REF#refs/heads/}
-
