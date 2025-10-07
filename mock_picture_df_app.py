@@ -5,8 +5,8 @@ df = pd.DataFrame({
     "id": [1, 2],
     "description": ["a の画像", "b の画像"],
     "img": [
-        "http://localhost:8890/a.jpg",   # ポート番号に注意
-        "http://localhost:8890/b.jpg"
+        "https://github.com/apricot496/ryuon_equipment0825/blob/issue_006/static/a.jpg",   # ポート番号に注意
+        "https://github.com/apricot496/ryuon_equipment0825/blob/issue_006/static/b.jpg"
     ]
 })
 
