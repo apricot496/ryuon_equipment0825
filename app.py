@@ -21,22 +21,30 @@ def load_data():
         equipment_df_concat_list = []
         for  rarelity in rarelity_order:
             sheet_name = f"{rarelity}{equipments}"
-            df = pd.read_sql(f"""SELECT 
-                                s.装備名
-                                , e.IMG_URL AS 画像
-                                , 装備番号
-                                , s.レアリティ
-                                , s.体力
-                                , s.攻撃力
-                                , s.防御力
-                                , s.会心率
-                                , s.命中率
-                                , s.回避率
-                                , s.アビリティ
-                                , s.アビリティカテゴリ
-                              FROM '{sheet_name}' AS s
-                              LEFT JOIN eqipment_img_scraping AS e
-                              ON s.装備名 = e.装備名 AND s.レアリティ = e.レアリティ
+            df = pd.read_sql(f"""
+WITH new_eqipment_img_scraping AS (
+    SELECT DISTINCT
+        装備名
+        , IMG_URL
+        , レアリティ
+    FROM eqipment_img_scraping
+    )
+SELECT 
+    s.装備名
+    , e.IMG_URL AS 画像
+    , 装備番号
+    , s.レアリティ
+    , s.体力
+    , s.攻撃力
+    , s.防御力
+    , s.会心率
+    , s.命中率
+    , s.回避率
+    , s.アビリティ
+    , s.アビリティカテゴリ
+FROM '{sheet_name}' AS s
+LEFT JOIN new_eqipment_img_scraping AS e
+ON s.装備名 = e.装備名 AND s.レアリティ = e.レアリティ
                               """
                               , conn)
             equipment_df_concat_list.append(df)
