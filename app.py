@@ -21,7 +21,24 @@ def load_data():
         equipment_df_concat_list = []
         for  rarelity in rarelity_order:
             sheet_name = f"{rarelity}{equipments}"
-            df = pd.read_sql(f"SELECT * FROM '{sheet_name}'", conn)
+            df = pd.read_sql(f"""SELECT 
+                                s.装備名
+                                , e.IMG_URL AS 画像
+                                , 装備番号
+                                , s.レアリティ
+                                , s.体力
+                                , s.攻撃力
+                                , s.防御力
+                                , s.会心率
+                                , s.命中率
+                                , s.回避率
+                                , s.アビリティ
+                                , s.アビリティカテゴリ
+                              FROM '{sheet_name}' AS s
+                              LEFT JOIN eqipment_img_scraping AS e
+                              ON s.装備名 = e.装備名 AND s.レアリティ = e.レアリティ
+                              """
+                              , conn)
             equipment_df_concat_list.append(df)
         df = pd.concat(equipment_df_concat_list, ignore_index=True)
         df = df.replace('', pd.NA)
@@ -105,40 +122,41 @@ def ability_select_list_ui(category_df):
         ability_select_list = ability_name_list
     return ability_select_list
 
-def equipment_col_select_ui():
-    equipment_col_list = ['レアリティ', '体力', '攻撃力', '防御力', '会心率', '命中率', '回避率', 'アビリティ']
+# resetボタンを押したときに全選択されるようにする案
+# def equipment_col_select_ui():
+#     equipment_col_list = ['レアリティ', '体力', '攻撃力', '防御力', '会心率', '命中率', '回避率', 'アビリティ']
     
-    # 初期状態のセッション設定
-    if "col_state" not in st.session_state:
-        st.session_state["col_state"] = equipment_col_list
+#     # 初期状態のセッション設定
+#     if "col_state" not in st.session_state:
+#         st.session_state["col_state"] = equipment_col_list
 
-    # UIのレイアウト
-    cols = st.columns([2, 1, 1])
-    with cols[0]:
-        st.write("### 表示項目")
-    with cols[1]:
-        if st.button('全選択', key='all_select_col_button'):
-            st.session_state["col_state"] = equipment_col_list
-    with cols[2]:
-        if st.button('リセット', key='all_reset_col_button'):
-            st.session_state["col_state"] = []
+#     # UIのレイアウト
+#     cols = st.columns([2, 1, 1])
+#     with cols[0]:
+#         st.write("### 表示項目")
+#     with cols[1]:
+#         if st.button('全選択', key='all_select_col_button'):
+#             st.session_state["col_state"] = equipment_col_list
+#     with cols[2]:
+#         if st.button('リセット', key='all_reset_col_button'):
+#             st.session_state["col_state"] = []
 
-    # `st.multiselect` の選択項目をセッション状態で管理
-    equipment_col_select_list = st.multiselect(
-        label='',
-        options=equipment_col_list,
-        default=st.session_state["col_state"],
-        label_visibility='collapsed'
-    )
-    # セッション状態を更新
-    if set(equipment_col_select_list) != set(st.session_state["col_state"]):
-        st.session_state["col_state"] = equipment_col_select_list
+#     # `st.multiselect` の選択項目をセッション状態で管理
+#     equipment_col_select_list = st.multiselect(
+#         label='',
+#         options=equipment_col_list,
+#         default=st.session_state["col_state"],
+#         label_visibility='collapsed'
+#     )
+#     # セッション状態を更新
+#     if set(equipment_col_select_list) != set(st.session_state["col_state"]):
+#         st.session_state["col_state"] = equipment_col_select_list
 
-    return st.session_state["col_state"]
+#     return st.session_state["col_state"]
 
 
 def equipment_col_select_ui():
-    equipment_col_list = ['レアリティ', '体力', '攻撃力', '防御力', '会心率', '命中率', '回避率', 'アビリティ']
+    equipment_col_list = ['画像','レアリティ', '体力', '攻撃力', '防御力', '会心率', '命中率', '回避率', 'アビリティ']
     st.write("### 表示項目")
     # `st.multiselect` の選択項目をセッション状態で管理
     equipment_col_select_list = st.multiselect(
@@ -164,10 +182,12 @@ def equipment_checked_df_list(equipment, filtered_equipment_df, equipment_col_se
     session_key = f"{equipment}_checked_rows"
     if session_key not in st.session_state:
         st.session_state[session_key] = []
+    # 画像の読み込み
+    col_cfg = {"画像": st.column_config.ImageColumn("画像")}
     
     equipment_df = pd.concat([filtered_equipment_df[['check', '装備名']], filtered_equipment_df[equipment_col_select_list]],axis=1)
     equipment_df["check"] = equipment_df.index.isin(st.session_state[session_key])
-    equipment_df = st.data_editor(equipment_df,disabled=(col for col in equipment_col_select_list + ["装備名"]),key=f"{equipment}_df")
+    equipment_df = st.data_editor(equipment_df,disabled=(col for col in equipment_col_select_list + ["装備名"]),key=f"{equipment}_df", column_config=col_cfg)
     st.session_state[session_key] = filtered_equipment_df[equipment_df["check"]]['装備番号'].tolist()
     select_index_num_list = filtered_equipment_df[equipment_df["check"]]['装備番号'].tolist()
     # st.write(select_index_num_list)
