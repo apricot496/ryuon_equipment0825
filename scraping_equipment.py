@@ -227,7 +227,12 @@ if __name__ == "__main__":
     print(f"スクレイピング範囲: {start} ～ {end}")
     for num in range(start, end + 1):
         url = f"https://ryu.sega-online.jp/news/{num}/"
-        tables = get_equipment_tables(url)
+        try:
+            tables = get_equipment_tables(url)
+        except Exception as e:
+            print(f"エラー: {num} ({e})")
+            time.sleep(1)
+            continue
         if len(tables) > 0:
             equips = parse_equipment_tables(tables, url, num, now_branch)
             insert_to_db(equips)
