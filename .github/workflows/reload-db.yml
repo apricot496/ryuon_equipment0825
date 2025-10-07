@@ -41,6 +41,7 @@ jobs:
         run: python reload_ss_to_db.py
 
       - name: Scrape Equipment Data
+        timeout-minutes: 10
         env:
           NOW_BRANCH: ${{ github.ref_name }}   # 実行時のブランチ名を渡す
         run: python scraping_equipment.py
@@ -52,6 +53,6 @@ jobs:
           git config --global user.name "github-actions[bot]"
           git config --global user.email "github-actions[bot]@users.noreply.github.com"
           now=$(date '+%Y-%m-%d %H:%M:%S')
-          git add equipment.db
+          git add equipment.db static/
           git commit -m "[$now] equipment.db 更新" || echo "No changes to commit"
           git push https://x-access-token:${GITHUB_TOKEN}@github.com/${{ github.repository }} HEAD:${GITHUB_REF#refs/heads/}
