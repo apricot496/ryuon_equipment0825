@@ -170,13 +170,13 @@ def parse_equipment_tables(equipment_info_table_list, base_url: str, url_num, no
 def main_loop():
     existing = set(get_existing_numbers())
     skip_nums = set()
-    for n in existing:
-        skip_nums.update(range(n-4, n+5))
+    # for n in existing:
+    #     skip_nums.update(range(n-2, n+2))
 
-    for num in range(1500, 5001):
-        if num in skip_nums:
-            print(f"skip {num}")
-            continue
+    for num in range(2872, 2880):
+        # if num in skip_nums:
+        #     print(f"skip {num}")
+        #     continue
         time.sleep(0.5)
         url = f"https://ryu.sega-online.jp/news/{num}/"
         print(f"processing {num} -> {url}")
