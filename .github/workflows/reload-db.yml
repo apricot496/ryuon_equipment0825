@@ -45,10 +45,15 @@ jobs:
           NOW_BRANCH: ${{ github.ref_name }}   # 実行時のブランチ名を渡す
         run: |
           timeout -k 5s 30s python scraping_equipment.py || true
-      - name: drop index
-        run: python index_drop_db.py
+      # - name: drop index
+      #   run: python index_drop_db.py
       - name: BASE64 encode images and update DB
         run: python trans_base64.py
+      - name: Check file sizes
+        run: |
+          ls -lh equipment.db
+          du -h equipment.db
+          git ls-files -s equipment.db
       - name: Commit and Push changes
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
