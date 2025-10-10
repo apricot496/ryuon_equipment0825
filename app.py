@@ -25,13 +25,13 @@ def load_data():
 WITH new_eqipment_img_scraping AS (
     SELECT DISTINCT
         装備名
-        , IMG_URL
+        , BASE64
         , レアリティ
     FROM eqipment_img_scraping
     )
 SELECT 
     s.装備名
-    , e.IMG_URL AS 画像
+    , e.BASE64 AS 画像
     , 装備番号
     , s.レアリティ
     , s.体力
