@@ -37,5 +37,9 @@ ORDER BY URL_Number ASC;
 # 元テーブルを置き換えたい場合
 cur.execute("DROP TABLE eqipment_img_scraping")
 cur.execute("ALTER TABLE new_eqipment_img_scraping RENAME TO eqipment_img_scraping")
+
+# VACUUMで空き領域を解放
+cur.execute("VACUUM;")
+
 conn.commit()
 conn.close()
