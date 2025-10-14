@@ -22,9 +22,16 @@ latest_numbered_equipment_table AS (
     SELECT * FROM re_eqipment_img_scraping
     UNION ALL
     SELECT * FROM max_num_index
+),
+deduped AS (
+    SELECT *,
+           ROW_NUMBER() OVER (PARTITION BY 画像名 ORDER BY URL_Number ASC) AS rn
+    FROM latest_numbered_equipment_table
 )
-SELECT DISTINCT *
-FROM latest_numbered_equipment_table;
+SELECT *
+FROM deduped
+WHERE rn = 1
+ORDER BY URL_Number ASC;
             """)
 
 # 元テーブルを置き換えたい場合
