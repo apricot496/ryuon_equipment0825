@@ -23,7 +23,7 @@ def load_scraiping():
     try:
         with sqlite3.connect("equipment.db") as conn:
             # SQLiteでdatetime()に変換してORDER
-            query = 'SELECT * FROM eqipment_img_scraping ORDER BY URL_Number DESC;'
+            query = 'SELECT * FROM equipment_img_scraping ORDER BY URL_Number DESC;'
             df = pd.read_sql(query, conn)
             
     except Exception as e:
