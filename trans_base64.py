@@ -3,7 +3,7 @@ import base64
 import os
 
 DB_FILE = "equipment.db"
-TABLE = "eqipment_img_scraping"
+TABLE = "equipment_img_scraping"
 
 # IMG_URL から削除するプレフィックス
 PREFIX = "https://raw.githubusercontent.com/apricot496/ryuon_equipment0825/main/"

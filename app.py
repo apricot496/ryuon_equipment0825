@@ -22,12 +22,12 @@ def load_data():
         for  rarelity in rarelity_order:
             sheet_name = f"{rarelity}{equipments}"
             df = pd.read_sql(f"""
-WITH new_eqipment_img_scraping AS (
+WITH new_equipment_img_scraping AS (
     SELECT DISTINCT
         装備名
         , BASE64
         , レアリティ
-    FROM eqipment_img_scraping
+    FROM equipment_img_scraping
     )
 SELECT 
     s.装備名
@@ -43,7 +43,7 @@ SELECT
     , s.アビリティ
     , s.アビリティカテゴリ
 FROM '{sheet_name}' AS s
-LEFT JOIN new_eqipment_img_scraping AS e
+LEFT JOIN new_equipment_img_scraping AS e
 ON s.装備名 = e.装備名 AND s.レアリティ = e.レアリティ
                               """
                               , conn)
@@ -58,7 +58,7 @@ ON s.装備名 = e.装備名 AND s.レアリティ = e.レアリティ
         df_list.append(df)
 
     # アビリティカテゴリ
-    df_category = pd.read_sql("SELECT * FROM 'ability-category'", conn)
+    df_category = pd.read_sql("SELECT * FROM 'ability_category'", conn)
     df_nan = pd.DataFrame({'アビリティカテゴリ分類': ['アビリティなし']})
     df_category = pd.concat([df_category, df_nan])
 

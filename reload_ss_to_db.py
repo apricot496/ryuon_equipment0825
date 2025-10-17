@@ -12,7 +12,7 @@ SHEET_NAMES = [
     "ur武器", "ur防具", "ur装飾",
     "ksr武器", "ksr防具", "ksr装飾",
     "ssr武器", "ssr防具", "ssr装飾",
-    "ability-category"
+    "ability_category"
 ]
 JST = timezone(timedelta(hours=9))
 
@@ -55,7 +55,7 @@ def load_credentials_and_key():
 
 def cast_dataframe(sheet_name: str, df: pd.DataFrame) -> pd.DataFrame:
     """列の型変換。int列に小数が混じっていたらエラー"""
-    if sheet_name != "ability-category":
+    if sheet_name != "ability_category":
         # int列
         for col in ["体力", "攻撃力", "防御力"]:
             if col in df.columns:

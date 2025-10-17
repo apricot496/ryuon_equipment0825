@@ -20,7 +20,7 @@ def load_data(sheet_name):
     worksheet_ur = gc.open_by_key(spreadsheet_key).worksheet('ur'+sheet_name)
     worksheet_ksr = gc.open_by_key(spreadsheet_key).worksheet('ksr'+sheet_name)
     worksheet_ssr = gc.open_by_key(spreadsheet_key).worksheet('ssr'+sheet_name)
-    worksheet_category = gc.open_by_key(spreadsheet_key).worksheet('ability-category')
+    worksheet_category = gc.open_by_key(spreadsheet_key).worksheet('ability_category')
 
     # シートデータの読み込み
     data_ur = worksheet_ur.get_all_records()

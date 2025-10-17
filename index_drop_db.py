@@ -6,7 +6,7 @@ DB_PATH = "equipment.db"
 conn = sqlite3.connect(DB_PATH)
 cur = conn.cursor()
 
-cur.execute("""CREATE TABLE new_eqipment_img_scraping AS
+cur.execute("""CREATE TABLE new_equipment_img_scraping AS
 WITH 
 max_num_index AS (
     SELECT 
@@ -25,12 +25,12 @@ max_num_index AS (
     , "IMG_URL"
     , "IMG_Path"
     , "BASE64"
-    FROM eqipment_img_scraping
-    WHERE "URL_Number" = (SELECT MAX("URL_Number") FROM eqipment_img_scraping)
+    FROM equipment_img_scraping
+    WHERE "URL_Number" = (SELECT MAX("URL_Number") FROM equipment_img_scraping)
     ORDER BY "URL_Number" DESC
     limit 1
 ),
-re_eqipment_img_scraping AS (
+re_equipment_img_scraping AS (
     SELECT
 
     "装備名"
@@ -48,12 +48,12 @@ re_eqipment_img_scraping AS (
     , MIN("IMG_URL") AS "IMG_URL"
     , MIN("IMG_Path") AS "IMG_Path"
     , MIN("BASE64") AS "BASE64"
-    FROM eqipment_img_scraping
+    FROM equipment_img_scraping
     WHERE "装備名" IS NOT NULL
     GROUP BY "装備名", "レアリティ"
     ),
 latest_numbered_equipment_table AS (
-        SELECT * FROM re_eqipment_img_scraping
+        SELECT * FROM re_equipment_img_scraping
         UNION ALL
         SELECT * FROM max_num_index
     ),
@@ -81,9 +81,46 @@ ORDER BY "URL_Number"
 SELECT * FROM latest_drop_equipment_table;
             """)
 
+cur.execute("""
+CREATE TABLE new_load_log AS
+WITH grouped_log AS (
+    SELECT 
+        MIN(更新日時) AS 更新日時,
+        'No difference aggregated' AS コミットメッセージ,
+        ur武器,
+        ur防具,
+        ur装飾,
+        ksr武器,
+        ksr防具,
+        ksr装飾,
+        ssr武器,
+        ssr防具,
+        ssr装飾,
+        ability_category
+    FROM load_log
+    GROUP BY 
+        ur武器, ur防具, ur装飾,
+        ksr武器, ksr防具, ksr装飾,
+        ssr武器, ssr防具, ssr装飾,
+        ability_category
+),
+latest_log AS (
+    SELECT * 
+    FROM load_log
+    ORDER BY 更新日時 DESC
+    LIMIT 1
+)
+SELECT * FROM grouped_log
+UNION ALL
+SELECT * FROM latest_log
+ORDER BY 更新日時 ASC;
+""")
+
 # 元テーブルを置き換えたい場合
-cur.execute("DROP TABLE eqipment_img_scraping")
-cur.execute("ALTER TABLE new_eqipment_img_scraping RENAME TO eqipment_img_scraping")
+cur.execute("DROP TABLE equipment_img_scraping")
+cur.execute("ALTER TABLE new_equipment_img_scraping RENAME TO equipment_img_scraping")
+cur.execute("DROP TABLE load_log;")
+cur.execute("ALTER TABLE new_load_log RENAME TO load_log;")
 
 # VACUUMで空き領域を解放
 cur.execute("VACUUM;")

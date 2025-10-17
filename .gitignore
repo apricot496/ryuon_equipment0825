@@ -4,4 +4,3 @@ myenv/
 .env
 mock/
 equipment_json_list/
-equipment.db

@@ -2,8 +2,8 @@ name: Reload Sheets to DB
 
 on:
   workflow_dispatch:     # 手動実行
-  # schedule:
-  #   - cron: "0 */3 * * *"   # 3時間ごとに実行 (UTC基準)
+  schedule:
+    - cron: "0 */3 * * *"   # 3時間ごとに実行 (UTC基準)
 
 jobs:
   build:

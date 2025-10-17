@@ -7,7 +7,7 @@ def delete_all_data():
     """テーブルの全データ削除"""
     conn = sqlite3.connect(DB_PATH)
     cur = conn.cursor()
-    cur.execute("DELETE FROM eqipment_img_scraping")
+    cur.execute("DELETE FROM equipment_img_scraping")
     conn.commit()
     conn.close()
     print("✅ 全データを削除しました")
