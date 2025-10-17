@@ -33,7 +33,7 @@
         - ssr_accesary.csv
         - ssr_weapon.csv
         - ssr_armor.csv
-        - ability-category.csv #装備を検索するためのカテゴリをまとめたもの
+        - ability_category.csv #装備を検索するためのカテゴリをまとめたもの
 - test.ipynb
     - 私がバグ検証等に使っていた作業ファイル．邪魔なら消してください
 

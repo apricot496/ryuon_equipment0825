@@ -58,7 +58,7 @@ ON s.装備名 = e.装備名 AND s.レアリティ = e.レアリティ
         df_list.append(df)
 
     # アビリティカテゴリ
-    df_category = pd.read_sql("SELECT * FROM 'ability-category'", conn)
+    df_category = pd.read_sql("SELECT * FROM 'ability_category'", conn)
     df_nan = pd.DataFrame({'アビリティカテゴリ分類': ['アビリティなし']})
     df_category = pd.concat([df_category, df_nan])
 

@@ -16,7 +16,7 @@ def load_data():
     worksheet_ssr_armor = gc.open_by_key(spreadsheet_key).worksheet('ssr防具')
     worksheet_ksr_accesary = gc.open_by_key(spreadsheet_key).worksheet('ksr装飾')
     worksheet_ssr_accesary = gc.open_by_key(spreadsheet_key).worksheet('ssr装飾')
-    worksheet_category = gc.open_by_key(spreadsheet_key).worksheet('ability-category')
+    worksheet_category = gc.open_by_key(spreadsheet_key).worksheet('ability_category')
 
     # シートデータの読み込み
     data_ksr_weapon = worksheet_ksr_weapon.get_all_records()
@@ -45,7 +45,7 @@ def load_data():
         'ssr_armor': df_ssr_armor,
         'ksr_accesary': df_ksr_accesary,
         'ssr_accesary': df_ssr_accesary,
-        'ability-category': df_category
+        'ability_category': df_category
     }
     
     return df_dict
