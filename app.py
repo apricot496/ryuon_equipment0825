@@ -124,7 +124,7 @@ def ability_select_list_ui(category_df):
     # # Nanを削除
     # ability_name_list = ability_name_list[1:]
     #複数選択
-    ability_select_list = st.multiselect(label='',options = ability_name_list,label_visibility= 'collapsed')
+    ability_select_list = st.multiselect(label='アビリティを選択してください',options = ability_name_list,label_visibility= 'collapsed')
     
     if len(ability_select_list) == 0:
         ability_select_list = ability_name_list
