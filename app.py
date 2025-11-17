@@ -82,7 +82,7 @@ def rarity_select_list_ui():
     st.write("### レアリティ")
     # レアリティ選択ピル
     rarity_select_list = st.pills(
-        label=None,
+        label= 'レアリティ',
         options=rarity_list,
         selection_mode="multi",
         # default=st.session_state["rarity_state"],
@@ -107,7 +107,7 @@ def status_select_list_ui():
     #         st.session_state["status_state"] = []
     st.write("### ステータス")
     status_select_list = st.pills(
-        label=None,
+        label= 'ステータス',
         options=status_list,
         selection_mode="multi",
         # default=st.session_state["status_state"],
@@ -168,7 +168,7 @@ def equipment_col_select_ui():
     st.write("### 表示項目")
     # `st.multiselect` の選択項目をセッション状態で管理
     equipment_col_select_list = st.multiselect(
-        label='',
+        label='表示項目',
         options=equipment_col_list,
         default=equipment_col_list,
         label_visibility='collapsed'
