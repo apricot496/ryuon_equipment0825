@@ -3,7 +3,7 @@ name: Reload Sheets to DB
 on:
   workflow_dispatch:     # 手動実行
   schedule:
-    - cron: "0 */3 * * *"   # 3時間ごとに実行 (UTC基準)
+    - cron: "0 6 * * *"   # JST 15:00（UTC 06:00）に毎日1回実行
 
 jobs:
   build:
