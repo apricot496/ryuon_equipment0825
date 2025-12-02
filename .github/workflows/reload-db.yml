@@ -44,7 +44,7 @@ jobs:
         env:
           NOW_BRANCH: ${{ github.ref_name }}   # 実行時のブランチ名を渡す
         run: |
-          timeout -k 5s 30s python scraping_equipment.py || true
+          timeout -k 5s 120s python scraping_equipment.py || true
       - name: BASE64 encode images and update DB
         run: python trans_base64.py
       - name: drop index
