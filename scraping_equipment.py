@@ -220,13 +220,13 @@ if __name__ == "__main__":
     now_branch = os.getenv("NOW_BRANCH")
     print(now_branch)
 
-    start = get_db_max_url() + 1
+    start = get_news_max_url() - 20
     if start <129:
         start = 129
     end = get_news_max_url()
     # 障害対応用（ローカル実行時コメントアウトを外す）
     # start = 5148
-    # end = start+2
+    # end = get_news_max_url()
     print(f"スクレイピング範囲: {start} ～ {end}")
     for num in range(start, end + 1):
         url = f"https://ryu.sega-online.jp/news/{num}/"
@@ -243,4 +243,4 @@ if __name__ == "__main__":
         else:
             insert_to_db([{"URL_Number": num}])
             print(f"空登録: {num}")
-        time.sleep(0.5)
+        time.sleep(1)
