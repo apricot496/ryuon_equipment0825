@@ -2,6 +2,9 @@ import os
 from PIL import Image
 import shutil
 import pandas as pd
+import sqlite3
+
+DB_PATH = "equipment.db"
 
 '''
 トラブル対応用画像処理スクリプト
@@ -52,6 +55,24 @@ def generate_input_output_paths(input_dir="元画像スクショ", output_dir="c
 
     return input_path_list, output_path_list
 
+def insert_to_db(equips):
+    conn = sqlite3.connect(DB_PATH)
+    cur = conn.cursor()
+    for eq in equips:
+        cur.execute("""
+            INSERT INTO equipment_img_scraping
+            (装備名, レアリティ, 画像名, 体力, 攻撃力, 防御力, 会心率, 回避率, 命中率, アビリティ, 新規フラグ, URL_Number, IMG_URL)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """, (
+            eq.get("装備名"), eq.get("レアリティ"), eq.get("画像名"),
+            eq.get("体力"), eq.get("攻撃力"), eq.get("防御力"),
+            eq.get("会心率"), eq.get("回避率"), eq.get("命中率"),
+            eq.get("アビリティ"), eq.get("新規フラグ"),
+            eq.get("URL_Number"), eq.get("IMG_URL")
+        ))
+    conn.commit()
+    conn.close()
+
 # === 出力フォルダを確保 ===
 os.makedirs("cleansed_img_1", exist_ok=True)
 
@@ -99,13 +120,18 @@ for _, row in df.iterrows():
     else:
         print(f"⚠ ファイルが存在しません: {src_path}")
 
-# # 出力用データフレーム（指定されたカラム順）
-# out_cols = [
-#     "装備名", "レアリティ", "画像名", "体力", "攻撃力", "防御力", 
-#     "会心率", "回避率", "命中率", "アビリティ", 
-#     "新規フラグ", "URL_Number", "IMG_URL"
-# ]
+# dbの追加
+# 出力用データフレーム（指定されたカラム順）
+out_cols = [
+    "装備名", "レアリティ", "画像名", "体力", "攻撃力", "防御力", 
+    "会心率", "回避率", "命中率", "アビリティ", 
+    "新規フラグ", "URL_Number", "IMG_URL"
+]
 
-# df[out_cols].to_csv("trans_result.csv", index=False, encoding="utf-8-sig")
+# DataFrame → list[dict] に変換
+equip_list = df[out_cols].to_dict(orient="records")
 
-# print("✅ 変換完了: cleansed_2/ にリネーム済みPNG、trans_result.csv を出力しました")
+# DB にインサート
+insert_to_db(equip_list)
+
+print("✅ DB への登録が完了しました！")
