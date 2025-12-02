@@ -63,4 +63,5 @@ jobs:
           now=$(date '+%Y-%m-%d %H:%M:%S')
           git add equipment.db static/
           git commit -m "[$now] equipment.db 更新" || echo "No changes to commit"
+          git pull --rebase origin ${GITHUB_REF#refs/heads/}
           git push https://x-access-token:${GITHUB_TOKEN}@github.com/${{ github.repository }} HEAD:${GITHUB_REF#refs/heads/}
