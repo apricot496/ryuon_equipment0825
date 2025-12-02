@@ -244,3 +244,4 @@ if __name__ == "__main__":
             insert_to_db([{"URL_Number": num}])
             print(f"空登録: {num}")
         time.sleep(1)
+    print("スクレイピング完了")
