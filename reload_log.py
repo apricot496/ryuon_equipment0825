@@ -44,15 +44,8 @@ def load_equipments_data():
             sheet_name = f"{rarelity}{equipments}"
             df = pd.read_sql(f"""SELECT 
     装備名
-    , 装備番号
+    ,装備番号
     , レアリティ
-    , 体力
-    , 攻撃力
-    , 防御力
-    , 会心率
-    , 命中率
-    , 回避率
-    , アビリティ
     , アビリティカテゴリ
 FROM '{sheet_name}' """, conn)
             df_list.append(df)
@@ -63,10 +56,22 @@ FROM '{sheet_name}' """, conn)
     df_scraping = pd.read_sql("""SELECT
                               装備名
                             , レアリティ
-                            ,BASE64
+                            , 体力
+                            , 攻撃力
+                            , 防御力
+                            , 会心率
+                            , 命中率
+                            , 回避率
+                            , アビリティ
+                            ,URL_Number
                               FROM equipment_img_scraping
                               """, conn)
-    diff_df = pd.merge(df, df_scraping, on=['装備名', 'レアリティ'], how='right', indicator=True)
+    df_scraping["URL"] = "https://ryu.sega-online.jp/news/" + df_scraping["URL_Number"].astype(str) + "/"
+
+    left_diff_df = pd.merge(df_scraping ,df[['装備名','装備番号','レアリティ','アビリティカテゴリ']], on=['装備名', 'レアリティ'], how='outer', indicator=True)
+    right_diff_df = pd.merge(df ,df_scraping[['装備名','レアリティ','URL_Number','URL']], on=['装備名', 'レアリティ'], how='left', indicator=True)
+    diff_df = pd.concat([left_diff_df, right_diff_df])
+    diff_df = diff_df[['装備名','装備番号','レアリティ','体力','攻撃力','防御力','会心率','命中率','回避率','アビリティ','アビリティカテゴリ','URL','_merge']]
     diff_df = diff_df[diff_df['_merge'] != 'both'].drop(columns=['_merge'])
     # # アビリティカテゴリ
     # df_category = pd.read_sql("SELECT * FROM 'ability_category'", conn)
@@ -88,6 +93,11 @@ def main():
     with scraiping:
         st.subheader("スクレイピング結果")  
         df = load_scraiping()
+        search_word = st.text_input("装備名で検索", "")
+
+        # 入力がある場合は部分一致でフィルター
+        if search_word:
+            df = df[df["装備名"].str.contains(search_word, na=False)]
         if not df.empty:
             st.dataframe(df, use_container_width=True)
         else:
