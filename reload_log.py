@@ -96,6 +96,8 @@ def main():
         st.subheader("スクレイピング結果の差分")  
         diff_df = load_equipments_data()
         st.dataframe(diff_df, use_container_width=True)
+        st.write("装備番号がNoneのものは、スプレッドシートに未登録の装備です。")
+        st.write("装備番号が記載あるものは、スクレイピングが失敗しているまたはHP上に存在しない可能性があります。")
 
 
 if __name__ == "__main__":
