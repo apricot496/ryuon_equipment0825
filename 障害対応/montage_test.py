@@ -1,224 +1,230 @@
+# 障害対応/montage_test.py
+# マーク（左上）だけで「種類（武器/防具/装飾）」を判定する学習なしテスト
+# - 参照: モンタージュ作成用/{ur|ssr|ksr}{武器|防具|装飾}/***.png
+# - テスト: モンタージュ判定テスト用/{ur|ssr|ksr}{武器|防具|装飾}/***.png
+# - 出力: kind_marker_knn.csv（repoルート）
+
 from pathlib import Path
-import numpy as np
-import pandas as pd
-from PIL import Image, ImageFilter
+import unicodedata
 from collections import defaultdict
 
-# ========= パス =========
-TEST_ROOT = Path("モンタージュ判定テスト用")
-REF_ROOT  = Path("モンタージュ作成用")
-OUT_CSV = Path("montage_nn_2axis_test.csv")
+import numpy as np
+import pandas as pd
+from PIL import Image, ImageFilter, ImageOps
 
-IMG_EXTS = [".png"]  # 必要なら増やす
+# ========= パス（相対ズレ対策：スクリプト位置基準） =========
+BASE_DIR = Path(__file__).resolve().parents[1]  # 障害対応/ の1つ上 = repoルート想定
+REF_ROOT  = BASE_DIR / "モンタージュ作成用"
+TEST_ROOT = BASE_DIR / "モンタージュ判定テスト用"
+OUT_CSV   = BASE_DIR / "kind_marker_knn.csv"
 
-# ========= 前処理/特徴量設定 =========
-TARGET_SIZE = 64
-W_HASH = 0.45
-W_EDGE = 0.45
-W_HIST = 0.10
+# ========= ラベル =========
+RARITIES = ["ur", "ssr", "ksr"]
+KINDS = ["武器", "防具", "装飾"]
+
+# ========= ROI（左上マーク領域） =========
+# まずは広め（枠は後段で消す）
+ROI_X0, ROI_Y0 = 0.00, 0.00
+ROI_X1, ROI_Y1 = 0.38, 0.38
+ROI_BY_RARITY = {
+    "ssr": (0.00, 0.00, 0.32, 0.25),  # ★SSRは背景が強いので小さく（左上金具＋マーク中心）
+    "ur":  (0.00, 0.00, 0.38, 0.38),
+    "ksr": (0.00, 0.00, 0.38, 0.38),
+}
+
+# ========= 前処理パラメータ =========
+EDGE_THR = 35                # エッジ画像の二値化しきい値
+BORDER_MARGIN = 5            # 枠ノイズを消す外周マージン(px)
+BORDER_MARGIN_SSR = 8        # SSRだけ枠が強いことが多いので少し強め
+
+LINE_RATIO = 0.70            # 行/列がこの割合以上"1"なら枠直線扱いで消す
+
+# ========= kNN投票 =========
+TOPK = 9                     # 7〜15くらいで調整
+THRESH_RATIO = 1.30          # 最良距離*d0 の 1.3倍以内だけ投票（遠い候補を捨てて票割れ防止）
+
+# ========= 高速Hamming用 =========
+_BITCOUNT = np.array([bin(i).count("1") for i in range(256)], dtype=np.uint8)
 
 
-def normalize_label(s: str) -> str:
-    s = s.lower()
-    for ch in ["_", " ", "　", "-", "‐", "—", "－"]:
-        s = s.replace(ch, "")
-    return s
+def parse_rarity(s: str) -> str | None:
+    t = unicodedata.normalize("NFKC", s).lower()
+    t = t.replace("_", "").replace(" ", "").replace("　", "")
+    for r in RARITIES:
+        if r in t:
+            return r
+    return None
 
 
-def split_rarity_kind(label: str):
+def parse_kind(s: str) -> str | None:
+    t = unicodedata.normalize("NFKC", s)
+    if "武器" in t:
+        return "武器"
+    if "防具" in t:
+        return "防具"
+    if "装飾" in t:
+        return "装飾"
+    return None
+
+
+def hamming_bytes(a: np.ndarray, b: np.ndarray) -> int:
+    return int(_BITCOUNT[np.bitwise_xor(a, b)].sum())
+
+
+def marker_binary(path: Path, rarity: str | None = None) -> np.ndarray:
     """
-    例: 'ur武器' / 'ur_武器' / 'UR装飾' -> ('ur', '武器')
+    画像 -> 左上ROI(レア別) -> オートコントラスト -> エッジ -> 二値化 -> 枠直線除去 -> packbits
     """
-    raw = label
-    s = normalize_label(label)
-
-    # rarity
-    rarity = None
-    for r in ["ur", "ksr", "ssr"]:
-        if r in s:
-            rarity = r
-            break
-
-    # kind
-    kind = None
-    if "武器" in raw:
-        kind = "武器"
-    elif "防具" in raw:
-        kind = "防具"
-    elif "装飾" in raw:
-        kind = "装飾"
-
-    return rarity, kind
-
-
-def content_crop_and_resize(im: Image.Image) -> Image.Image:
-    im = im.convert("RGBA")
-    arr = np.array(im)
-    alpha = arr[..., 3]
-
-    mask = alpha > 0
-    if mask.any():
-        ys, xs = np.where(mask)
-    else:
-        rgb = arr[..., :3].astype(np.int16)
-        corners = np.stack([rgb[0, 0], rgb[0, -1], rgb[-1, 0], rgb[-1, -1]], axis=0)
-        bg = corners.mean(axis=0)
-        dist = np.sqrt(((rgb - bg) ** 2).sum(axis=2))
-        mask2 = dist > 18  # 背景が残るなら↑、欠けるなら↓
-        if mask2.any():
-            ys, xs = np.where(mask2)
-        else:
-            return im.convert("RGB").resize((TARGET_SIZE, TARGET_SIZE), Image.Resampling.LANCZOS)
-
-    y0, y1 = ys.min(), ys.max()
-    x0, x1 = xs.min(), xs.max()
-    h = y1 - y0 + 1
-    w = x1 - x0 + 1
-
-    pad = int(0.12 * max(h, w))  # 防具が弱いならここ効きやすい
-    y0 = max(0, y0 - pad)
-    x0 = max(0, x0 - pad)
-    y1 = min(arr.shape[0] - 1, y1 + pad)
-    x1 = min(arr.shape[1] - 1, x1 + pad)
-
-    cropped = im.crop((x0, y0, x1 + 1, y1 + 1))
-
-    cw, ch = cropped.size
-    side = max(cw, ch)
-    canvas = Image.new("RGBA", (side, side), (0, 0, 0, 0))
-    canvas.paste(cropped, ((side - cw) // 2, (side - ch) // 2))
-    return canvas.convert("RGB").resize((TARGET_SIZE, TARGET_SIZE), Image.Resampling.LANCZOS)
-
-
-def dhash64(im_rgb: Image.Image) -> int:
-    g = im_rgb.convert("L").resize((9, 8), Image.Resampling.LANCZOS)
-    a = np.asarray(g, dtype=np.int16)
-    diff = (a[:, 1:] > a[:, :-1]).astype(np.uint8).flatten()
-    h = 0
-    for b in diff:
-        h = (h << 1) | int(b)
-    return h
-
-
-def hsv_hist(im_rgb: Image.Image, bins=(8, 4, 4)) -> np.ndarray:
-    hsv = np.asarray(im_rgb.convert("HSV"), dtype=np.uint8)
-    flat = hsv.reshape(-1, 3)
-    hist, _ = np.histogramdd(flat, bins=bins, range=((0, 255), (0, 255), (0, 255)))
-    hist = hist.astype(np.float32).flatten()
-    s = hist.sum()
-    return hist / s if s > 0 else hist
-
-
-def chi2(a: np.ndarray, b: np.ndarray, eps=1e-6) -> float:
-    return float(0.5 * np.sum(((a - b) ** 2) / (a + b + eps)))
-
-
-def ham(a: int, b: int) -> int:
-    return (a ^ b).bit_count()
-
-
-def extract_features(path: Path):
     with Image.open(path) as im:
-        x = content_crop_and_resize(im)
-    h1 = dhash64(x)
-    edge = x.filter(ImageFilter.FIND_EDGES)
-    h2 = dhash64(edge)
-    hist = hsv_hist(x)
-    return h1, h2, hist
+        im = im.convert("RGBA")
+        w, h = im.size
+
+        x0r, y0r, x1r, y1r = ROI_BY_RARITY.get(rarity, (0.0, 0.0, 0.38, 0.38))
+        x0 = int(x0r * w); y0 = int(y0r * h)
+        x1 = max(x0 + 1, int(x1r * w))
+        y1 = max(y0 + 1, int(y1r * h))
+
+        roi = im.crop((x0, y0, x1, y1)).convert("RGB")
+
+    roi = roi.resize((64, 64), Image.Resampling.LANCZOS)
+
+    roi = ImageOps.autocontrast(roi)
+    edge = roi.convert("L").filter(ImageFilter.FIND_EDGES)
+    a = np.asarray(edge, dtype=np.uint8).copy()  # read-only回避
+
+    # ★SSRはROIが小さくなるので、marginは強くしすぎない（消しすぎ防止）
+    m = 4 if rarity == "ssr" else BORDER_MARGIN
+    a[:m, :] = 0
+    a[-m:, :] = 0
+    a[:, :m] = 0
+    a[:, -m:] = 0
+
+    b = (a > EDGE_THR).astype(np.uint8)
+
+    # 枠直線の除去（背景がまだ残る場合に効く）
+    row_sum = b.sum(axis=1)
+    col_sum = b.sum(axis=0)
+    W = b.shape[1]
+    H = b.shape[0]
+    b[row_sum > int(LINE_RATIO * W), :] = 0
+    b[:, col_sum > int(LINE_RATIO * H)] = 0
+
+    return np.packbits(b.flatten())
 
 
-def build_reference(ref_root: Path):
-    refs = []
-    for d in sorted([p for p in ref_root.iterdir() if p.is_dir()]):
-        label = d.name
-        for ext in IMG_EXTS:
-            for p in d.glob(f"*{ext}"):
-                try:
-                    h1, h2, hist = extract_features(p)
-                    refs.append({"label": label, "path": p, "hash": h1, "edge": h2, "hist": hist})
-                except Exception:
-                    continue
-    if not refs:
-        raise FileNotFoundError(f"参照画像が見つかりません: {ref_root}/***/***.png")
-    return refs
+def build_ref_bank(ref_root: Path):
+    """
+    bank[rarity] = list of {kind, bits}
+    """
+    bank = {r: [] for r in RARITIES}
+
+    if not ref_root.exists():
+        raise FileNotFoundError(f"REF_ROOT not found: {ref_root.resolve()}")
+
+    for d in [p for p in ref_root.iterdir() if p.is_dir()]:
+        rarity = parse_rarity(d.name)
+        kind = parse_kind(d.name)
+
+        # 拡張子大小/下階層にも強く拾う
+        pngs = [p for p in d.rglob("*") if p.is_file() and p.suffix.lower() == ".png"]
+        print(f"[DEBUG] REF {d.name} -> rarity={rarity}, kind={kind}, png={len(pngs)}")
+
+        if rarity is None or kind is None:
+            continue
+
+        for p in pngs:
+            try:
+                bits = marker_binary(p, rarity=rarity)
+                bank[rarity].append({"kind": kind, "bits": bits})
+            except Exception as e:
+                print(f"[WARN] ref skip: {p} err={e}")
+
+    for r in RARITIES:
+        if not bank[r]:
+            print(f"[WARN] 参照が空: {r}")
+
+    if all(len(bank[r]) == 0 for r in RARITIES):
+        raise FileNotFoundError(f"参照画像が1枚も読み込めませんでした。REF_ROOT={ref_root.resolve()}")
+
+    return bank
 
 
-def predict_one_knn(test_path: Path, refs, k: int = 7):
-    th1, th2, thist = extract_features(test_path)
-
+def predict_kind(bits_test: np.ndarray, bank_r: list[dict], topk: int = TOPK) -> tuple[str, int]:
+    """
+    距離が小さいほど強い票で投票
+    + 最良距離のTHRESH_RATIO倍以内だけ投票（遠い候補混入を防ぐ）
+    戻り値: (pred_kind, best_distance)
+    """
     scored = []
-    for r in refs:
-        d1 = ham(th1, r["hash"]) / 64.0
-        d2 = ham(th2, r["edge"]) / 64.0
-        d3 = chi2(thist, r["hist"])
-        score = W_HASH * d1 + W_EDGE * d2 + W_HIST * d3
-        scored.append((score, r["label"]))
+    for item in bank_r:
+        d = hamming_bytes(bits_test, item["bits"])
+        scored.append((d, item["kind"]))
 
     scored.sort(key=lambda x: x[0])
-    topk = scored[:k]
+    top = scored[:topk]
 
-    eps = 1e-6
+    d0 = top[0][0]
+    thresh = int(d0 * THRESH_RATIO) + 1
+    top = [(d, k) for (d, k) in top if d <= thresh]
+
     vote = defaultdict(float)
-    for s, lab in topk:
-        vote[lab] += 1.0 / (eps + s)
+    for d, k in top:
+        vote[k] += 1.0 / (1e-6 + d)
 
     pred = max(vote.items(), key=lambda x: x[1])[0]
-    return pred, topk[0][0]
+    return pred, d0
 
 
 def main():
-    if not TEST_ROOT.exists():
-        raise FileNotFoundError(f"テストルートが見つかりません: {TEST_ROOT}")
-    if not REF_ROOT.exists():
-        raise FileNotFoundError(f"参照ルートが見つかりません: {REF_ROOT}")
+    print("[DEBUG] REF_ROOT =", REF_ROOT.resolve(), "exists=", REF_ROOT.exists())
+    print("[DEBUG] TEST_ROOT=", TEST_ROOT.resolve(), "exists=", TEST_ROOT.exists())
 
-    refs = build_reference(REF_ROOT)
+    bank = build_ref_bank(REF_ROOT)
 
-    test_paths = []
-    for ext in IMG_EXTS:
-        test_paths.extend(TEST_ROOT.glob(f"*/*{ext}"))
-    test_paths = sorted([p for p in test_paths if p.is_file()])
+    # テスト側（拡張子大小/下階層もOK）
+    test_paths = [p for p in TEST_ROOT.rglob("*") if p.is_file() and p.suffix.lower() == ".png"]
+    test_paths = sorted(test_paths)
     if not test_paths:
-        raise FileNotFoundError(f"テスト画像が見つかりません: {TEST_ROOT}/***/***.png")
+        raise FileNotFoundError(f"テスト画像が見つかりません: {TEST_ROOT.resolve()}")
 
     rows = []
     for p in test_paths:
-        true_dir = p.parent.name  # 正解ラベルはディレクトリ名
-        pred_dir, _ = predict_one_knn(p, refs, k=7)
+        true_dir = p.parent.name
+        rarity = parse_rarity(true_dir)      # 本番は「あなたの100%判定結果」を入れてOK
+        true_kind = parse_kind(true_dir)
 
-        true_r, true_k = split_rarity_kind(true_dir)
-        pred_r, pred_k = split_rarity_kind(pred_dir)
+        try:
+            bits = marker_binary(p, rarity=rarity)
+        except Exception as e:
+            print(f"[ERROR] marker_binary failed: {p} err={e}")
+            continue
 
-        rarity_ok = 1 if (true_r is not None and pred_r is not None and true_r == pred_r) else 0
-        kind_ok   = 1 if (true_k is not None and pred_k is not None and true_k == pred_k) else 0
-        both_ok   = 1 if (rarity_ok == 1 and kind_ok == 1) else 0
+        # rarityが取れない/参照が薄い場合は全参照でフォールバック
+        if rarity is None or not bank.get(rarity):
+            merged = []
+            for r in RARITIES:
+                merged.extend(bank[r])
+            pred_kind, best_d = predict_kind(bits, merged, topk=TOPK)
+        else:
+            pred_kind, best_d = predict_kind(bits, bank[rarity], topk=TOPK)
+
+        correct = 1 if (true_kind is not None and pred_kind == true_kind) else 0
 
         rows.append({
             "テストファイル名": p.name,
             "ディレクトリ": true_dir,
-            "対象montage_img": f"montage_{pred_dir}.png",
-            "レアリティ一致": rarity_ok,
-            "種類一致": kind_ok,
-            "両方一致": both_ok,  # 不要なら消してOK
+            "予測種類": pred_kind,
+            "正誤": correct,
+            "best_hamming": best_d,  # デバッグ用（不要なら消してOK）
         })
 
     df = pd.DataFrame(rows)
 
-    print("=== Overall ===")
-    print("レアリティ一致:", df["レアリティ一致"].mean())
-    print("種類一致      :", df["種類一致"].mean())
-    print("両方一致      :", df["両方一致"].mean())
+    print("Overall kind acc:", df["正誤"].mean())
+    print(df.groupby("ディレクトリ")["正誤"].mean().sort_values(ascending=False))
 
-    # 軸別の内訳（見たいとき）
-    df["true_rarity"], df["true_kind"] = zip(*df["ディレクトリ"].map(split_rarity_kind))
-    print("\n=== By rarity (both axis) ===")
-    print(df.groupby("true_rarity")[["レアリティ一致", "種類一致", "両方一致"]].mean())
-
-    print("\n=== By kind (both axis) ===")
-    print(df.groupby("true_kind")[["レアリティ一致", "種類一致", "両方一致"]].mean())
-
-    df.drop(columns=["true_rarity", "true_kind"]).to_csv(OUT_CSV, index=False, encoding="utf-8-sig")
-    print(f"\nSaved: {OUT_CSV}")
+    df.to_csv(OUT_CSV, index=False, encoding="utf-8-sig")
+    print("Saved:", OUT_CSV)
 
 
 if __name__ == "__main__":
