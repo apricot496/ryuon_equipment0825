@@ -13,8 +13,16 @@ jobs:
     steps:
       - uses: actions/checkout@v3
         with:
-          persist-credentials: false   # 手動でgit pushするため
+          persist-credentials: false
+          fetch-depth: 0
 
+      - name: Rebase onto latest branch
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          branch="${GITHUB_REF#refs/heads/}"
+          git remote set-url origin "https://x-access-token:${GITHUB_TOKEN}@github.com/${{ github.repository }}"
+          git pull --rebase origin "$branch"
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
@@ -58,10 +66,28 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
+          set -euxo pipefail
+          branch="${GITHUB_REF#refs/heads/}"
           git config --global user.name "github-actions[bot]"
           git config --global user.email "github-actions[bot]@users.noreply.github.com"
+          git remote set-url origin "https://x-access-token:${GITHUB_TOKEN}@github.com/${{ github.repository }}"
+
+          # SQLiteの副産物（WAL/SHM/JOURNAL）が残ると「未ステージ」になりがち
+          rm -f equipment.db-wal equipment.db-shm equipment.db-journal || true
+
+          # デバッグ（犯人特定にもなる）
+          git status --porcelain
+
+          # ここが重要：未ステージを残さない
+          # どれかにしてください：
+          # (A) 管理対象を増やす（例：equipment.db*）
+          git add equipment.db static/ || true
+
+          # (B) 生成物は.gitignoreに入れて add -A でもOKにする（運用が楽）
+          # git add -A
+
           now=$(date '+%Y-%m-%d %H:%M:%S')
-          git add equipment.db static/
           git commit -m "[$now] equipment.db 更新" || echo "No changes to commit"
-          git pull --rebase origin ${GITHUB_REF#refs/heads/}
-          git push https://x-access-token:${GITHUB_TOKEN}@github.com/${{ github.repository }} HEAD:${GITHUB_REF#refs/heads/}
+
+          # push（ブランチ上書き）
+          git push origin "HEAD:$branch"
