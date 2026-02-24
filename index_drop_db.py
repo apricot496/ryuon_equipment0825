@@ -87,7 +87,7 @@ cur.execute("VACUUM;")
 conn.commit()
 conn.close()
 
-log_path = Path(LOG_CSV_PATH)
+log_path = Path("load_log.csv")
 if log_path.exists() and log_path.stat().st_size > 0:
     df = pd.read_csv(log_path, encoding="utf-8-sig")
 
