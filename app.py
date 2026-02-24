@@ -1,6 +1,7 @@
 import streamlit as st
 import pandas as pd
 import sqlite3
+from pathlib import Path
 from datetime import datetime, timezone, timedelta
 
 # ページのタイトルとアイコンを設定
@@ -244,18 +245,22 @@ def equipments_status_sum(final_selected_weapon,final_selected_armor,final_selec
             st.write(f'{final_selected_equipment[6][1]}')
 
 def reload_time():
-    """DBのlogテーブルから最新更新日時を取得（日本時刻）"""
-    conn = sqlite3.connect(DB_FILE)
-    cur = conn.cursor()
-    cur.execute("SELECT 更新日時 FROM load_log ORDER BY 更新日時 DESC LIMIT 1")
-    row = cur.fetchone()
-    conn.close()
-
-    if row and row[0]:
-        jst_dt = datetime.strptime(row[0], "%Y-%m-%d %H:%M:%S").replace(tzinfo=timezone.utc)
-        return jst_dt.strftime("%Y-%m-%d %H:%M:%S")
-    else:
+    """load_log.csv から最新更新日時を取得（文字列: YYYY-MM-DD HH:MM:SS）"""
+    path = Path("load_log.csv")
+    if not path.exists() or path.stat().st_size == 0:
         return "更新記録なし"
+
+    df = pd.read_csv(path, encoding="utf-8-sig")
+    if df.empty or "更新日時" not in df.columns:
+        return "更新記録なし"
+
+    # 文字列→datetime（壊れてる行はNaT）
+    dt = pd.to_datetime(df["更新日時"], errors="coerce")
+    if dt.isna().all():
+        return "更新記録なし"
+
+    latest = dt.max()
+    return latest.strftime("%Y-%m-%d %H:%M:%S")
 
 def main():
     st.write('# 龍オン装備検索アプリケーション')
