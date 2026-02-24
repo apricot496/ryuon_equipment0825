@@ -8,6 +8,7 @@ import re
 import os
 import time
 import sqlite3
+import json
 
 IMG_DIR = "static"
 DB_PATH = "equipment.db"
@@ -241,7 +242,9 @@ if __name__ == "__main__":
             insert_to_db(equips)
             print(f"DB登録完了: {num}")
         else:
-            insert_to_db([{"URL_Number": num}])
+            # insert_to_db([{"URL_Number": num}])
+            with open('latest_scraping_num.json', 'w', encoding='utf-8') as f:
+                json.dump({"latest_scraping_num": num}, f, ensure_ascii=False, indent=2)
             print(f"空登録: {num}")
         time.sleep(1)
     print("スクレイピング完了")

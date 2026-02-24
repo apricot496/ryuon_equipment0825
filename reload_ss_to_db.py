@@ -6,6 +6,9 @@ import gspread
 from google.oauth2 import service_account
 from dotenv import load_dotenv
 from datetime import datetime, timezone, timedelta
+from zoneinfo import ZoneInfo
+from pathlib import Path
+import csv
 
 DB_FILE = "equipment.db"
 SHEET_NAMES = [
@@ -75,20 +78,43 @@ def save_to_db(sheet_name: str, df: pd.DataFrame, conn: sqlite3.Connection):
     df.to_sql(sheet_name, conn, if_exists="replace", index=False)
     print(f"✅ {sheet_name} を保存しました")
 
-def insert_log(conn, row_counts: dict, commit_message: str):
-    now = datetime.now(JST).strftime("%Y-%m-%d %H:%M:%S")
-    columns = ["更新日時", "コミットメッセージ"] + SHEET_NAMES
-    values = [now, commit_message] + [row_counts.get(sheet, 0) for sheet in SHEET_NAMES]
+# def insert_log(conn, row_counts: dict, commit_message: str):
+#     now = datetime.now(JST).strftime("%Y-%m-%d %H:%M:%S")
+#     columns = ["更新日時", "コミットメッセージ"] + SHEET_NAMES
+#     values = [now, commit_message] + [row_counts.get(sheet, 0) for sheet in SHEET_NAMES]
 
-    # カラム名をハイフン→アンダースコアに変換
+#     # カラム名をハイフン→アンダースコアに変換
+#     safe_columns = [c.replace("-", "_") for c in columns]
+
+#     conn.execute(
+#         f"INSERT INTO load_log ({','.join(safe_columns)}) VALUES ({','.join(['?']*len(values))})",
+#         values,
+#     )
+#     conn.commit()
+#     print("📝 ログを記録しました")
+
+def insert_log(row_counts: dict, commit_message: str, csv_path: str = "load_log.csv"):
+    now = datetime.now(JST).strftime("%Y-%m-%d %H:%M:%S")
+
+    columns = ["更新日時", "コミットメッセージ"] + SHEET_NAMES
+    values  = [now, commit_message] + [row_counts.get(sheet, 0) for sheet in SHEET_NAMES]
+
+    # DB向けにやってた「- → _」をCSVヘッダにも適用するならこちらを使う
     safe_columns = [c.replace("-", "_") for c in columns]
 
-    conn.execute(
-        f"INSERT INTO load_log ({','.join(safe_columns)}) VALUES ({','.join(['?']*len(values))})",
-        values,
-    )
-    conn.commit()
-    print("📝 ログを記録しました")
+    path = Path(csv_path)
+    write_header = not path.exists() or path.stat().st_size == 0
+
+    # Excelで開くことが多いなら utf-8-sig が無難（BOM付きUTF-8）
+    with path.open("a", newline="", encoding="utf-8-sig") as f:
+        writer = csv.writer(f)
+
+        if write_header:
+            writer.writerow(safe_columns)
+
+        writer.writerow(values)
+
+    print("📝 ログをCSVに記録しました")
 
 
 def main():
@@ -115,7 +141,7 @@ def main():
     commit_message = os.getenv("GITHUB_COMMIT_MESSAGE", "local run")
 
     # ログテーブル更新
-    insert_log(conn, row_counts, commit_message)
+    insert_log(row_counts, commit_message)
 
     conn.close()
     print(f"🎉 全シートを {DB_FILE} に保存 & ログ更新しました")
