@@ -55,6 +55,8 @@ jobs:
           timeout -k 5s 120s python scraping_equipment.py || true
       - name: BASE64 encode images and update DB
         run: python trans_base64.py
+      - name: stay equipment data to gsheet
+        run: python export_stay_equipment_to_gsheet.py;
       - name: drop index
         run: python index_drop_db.py
       - name: Check file sizes

@@ -49,7 +49,33 @@ ON s.装備名 = e.装備名 AND s.レアリティ = e.レアリティ
                               """
                               , conn)
             equipment_df_concat_list.append(df)
-        df = pd.concat(equipment_df_concat_list, ignore_index=True)
+        stay_df = pd.read_sql(f"""WITH new_equipment_img_scraping AS (
+    SELECT DISTINCT
+        装備名
+        , BASE64
+        , レアリティ
+    FROM equipment_img_scraping
+    )
+SELECT 
+    s.装備名
+    , e.BASE64 AS 画像
+    , 装備番号
+    , s.レアリティ
+    , s.体力
+    , s.攻撃力
+    , s.防御力
+    , s.会心率
+    , s.命中率
+    , s.回避率
+    , s.アビリティ
+    , s.アビリティカテゴリ
+FROM non_check_equipments AS s
+LEFT JOIN new_equipment_img_scraping AS e
+ON s.装備名 = e.装備名 AND s.レアリティ = e.レアリティ
+WHERE s.装備種類 = '{equipments}'""", conn)
+        equipment_df_concat_list.append(stay_df)
+        df = pd.concat(equipment_df_concat_list)
+        df = df.sort_values('装備番号', ignore_index=True)
         df = df.replace('', pd.NA)
         df['check'] = False
         # チェック列を一番左に移動
