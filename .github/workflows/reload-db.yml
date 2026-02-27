@@ -1,0 +1,108 @@
+name: Reload Sheets to DB
+
+on:
+  workflow_dispatch:     # 手動実行
+  schedule:
+    - cron: "0 6 * * *"   # JST 15:00（UTC 06:00）に毎日1回実行
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write 
+    steps:
+      - uses: actions/checkout@v3
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+
+      - name: Rebase onto latest branch
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          branch="${GITHUB_REF#refs/heads/}"
+          git remote set-url origin "https://x-access-token:${GITHUB_TOKEN}@github.com/${{ github.repository }}"
+          git pull --rebase origin "$branch"
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Reload Sheets to DB
+        env:
+          SPREADSHEET_KEY_NAME: ${{ secrets.SPREADSHEET_KEY_NAME }}
+          GCP_TYPE: ${{ secrets.GCP_TYPE }}
+          GCP_PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
+          GCP_PRIVATE_KEY_ID: ${{ secrets.GCP_PRIVATE_KEY_ID }}
+          GCP_PRIVATE_KEY: ${{ secrets.GCP_PRIVATE_KEY }}
+          GCP_CLIENT_EMAIL: ${{ secrets.GCP_CLIENT_EMAIL }}
+          GCP_CLIENT_ID: ${{ secrets.GCP_CLIENT_ID }}
+          GCP_AUTH_URI: ${{ secrets.GCP_AUTH_URI }}
+          GCP_TOKEN_URI: ${{ secrets.GCP_TOKEN_URI }}
+          GCP_AUTH_PROVIDER_CERT_URL: ${{ secrets.GCP_AUTH_PROVIDER_CERT_URL }}
+          GCP_CLIENT_CERT_URL: ${{ secrets.GCP_CLIENT_CERT_URL }}
+          GCP_UNIVERSE_DOMAIN: ${{ secrets.GCP_UNIVERSE_DOMAIN }}
+          GITHUB_COMMIT_MESSAGE: "Auto update from GitHub Actions"
+        run: python reload_ss_to_db.py
+
+      - name: Scrape Equipment Data
+        env:
+          NOW_BRANCH: ${{ github.ref_name }}   # 実行時のブランチ名を渡す
+        run: |
+          timeout -k 5s 120s python scraping_equipment.py || true
+      - name: BASE64 encode images and update DB
+        run: python trans_base64.py
+      - name: stay equipment data to gsheet
+        env:
+          SPREADSHEET_KEY_NAME: ${{ secrets.SPREADSHEET_KEY_NAME }}
+          GCP_TYPE: ${{ secrets.GCP_TYPE }}
+          GCP_PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
+          GCP_PRIVATE_KEY_ID: ${{ secrets.GCP_PRIVATE_KEY_ID }}
+          GCP_PRIVATE_KEY: ${{ secrets.GCP_PRIVATE_KEY }}
+          GCP_CLIENT_EMAIL: ${{ secrets.GCP_CLIENT_EMAIL }}
+          GCP_CLIENT_ID: ${{ secrets.GCP_CLIENT_ID }}
+          GCP_AUTH_URI: ${{ secrets.GCP_AUTH_URI }}
+          GCP_TOKEN_URI: ${{ secrets.GCP_TOKEN_URI }}
+          GCP_AUTH_PROVIDER_CERT_URL: ${{ secrets.GCP_AUTH_PROVIDER_CERT_URL }}
+          GCP_CLIENT_CERT_URL: ${{ secrets.GCP_CLIENT_CERT_URL }}
+          GCP_UNIVERSE_DOMAIN: ${{ secrets.GCP_UNIVERSE_DOMAIN }}
+        run: python export_stay_equipment_to_gsheet.py;
+      - name: drop index
+        run: python index_drop_db.py
+      - name: Check file sizes
+        run: |
+          ls -lh equipment.db
+          du -h equipment.db
+          git ls-files -s equipment.db
+      - name: Commit and Push changes
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euxo pipefail
+          branch="${GITHUB_REF#refs/heads/}"
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+          git remote set-url origin "https://x-access-token:${GITHUB_TOKEN}@github.com/${{ github.repository }}"
+
+          # SQLiteの副産物（WAL/SHM/JOURNAL）が残ると「未ステージ」になりがち
+          rm -f equipment.db-wal equipment.db-shm equipment.db-journal || true
+
+          # デバッグ（犯人特定にもなる）
+          git status --porcelain
+
+          # ここが重要：未ステージを残さない
+          # どれかにしてください：
+          # (A) 管理対象を増やす（例：equipment.db*）
+          git add equipment.db static/ || true
+
+          # (B) 生成物は.gitignoreに入れて add -A でもOKにする（運用が楽）
+          # git add -A
+
+          now=$(date '+%Y-%m-%d %H:%M:%S')
+          git commit -m "[$now] equipment.db 更新" || echo "No changes to commit"
+
+          # push（ブランチ上書き）
+          git push origin "HEAD:$branch"
