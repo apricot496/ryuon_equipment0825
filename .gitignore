@@ -4,5 +4,5 @@ myenv/
 .env
 mock/
 equipment_json_list/
-# equipment.db
+equipment.db
 元画像スクショ/
