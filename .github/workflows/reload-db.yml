@@ -56,6 +56,19 @@ jobs:
       - name: BASE64 encode images and update DB
         run: python trans_base64.py
       - name: stay equipment data to gsheet
+        env:
+          SPREADSHEET_KEY_NAME: ${{ secrets.SPREADSHEET_KEY_NAME }}
+          GCP_TYPE: ${{ secrets.GCP_TYPE }}
+          GCP_PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
+          GCP_PRIVATE_KEY_ID: ${{ secrets.GCP_PRIVATE_KEY_ID }}
+          GCP_PRIVATE_KEY: ${{ secrets.GCP_PRIVATE_KEY }}
+          GCP_CLIENT_EMAIL: ${{ secrets.GCP_CLIENT_EMAIL }}
+          GCP_CLIENT_ID: ${{ secrets.GCP_CLIENT_ID }}
+          GCP_AUTH_URI: ${{ secrets.GCP_AUTH_URI }}
+          GCP_TOKEN_URI: ${{ secrets.GCP_TOKEN_URI }}
+          GCP_AUTH_PROVIDER_CERT_URL: ${{ secrets.GCP_AUTH_PROVIDER_CERT_URL }}
+          GCP_CLIENT_CERT_URL: ${{ secrets.GCP_CLIENT_CERT_URL }}
+          GCP_UNIVERSE_DOMAIN: ${{ secrets.GCP_UNIVERSE_DOMAIN }}
         run: python export_stay_equipment_to_gsheet.py;
       - name: drop index
         run: python index_drop_db.py
