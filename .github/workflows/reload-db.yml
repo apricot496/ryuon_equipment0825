@@ -72,6 +72,8 @@ jobs:
         run: python export_stay_equipment_to_gsheet.py;
       - name: drop index
         run: python index_drop_db.py
+      - name: update_load_csv
+        run: python update_load_csv.py
       - name: Check file sizes
         run: |
           ls -lh equipment.db
