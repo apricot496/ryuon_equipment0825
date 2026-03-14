@@ -9,7 +9,7 @@ st.set_page_config(page_title="Ryuon_Apricot_Equipmentdata")
 
 DB_FILE = "equipment.db"
 
-@st.cache_data
+@st.cache_data(ttl=3600)
 def load_data():
     """SQLite DB からデータを読み込む"""
     conn = sqlite3.connect(DB_FILE)
