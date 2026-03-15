@@ -380,12 +380,15 @@ def add_equipment_no_for_non_check(df: pd.DataFrame) -> pd.DataFrame:
     out = out.sort_values("_row_order")
     out["_idx"] = out.groupby(["装備種類", "レアリティ"], sort=False).cumcount().add(1)
 
-    # 装備番号を生成（既存の装備番号カラムがある場合は削除してから設定）
-    equipment_numbers = out.apply(
-        lambda r: f'{int(r["_type_code"])}_{int(r["_rarity_code"])}_1_{int(r["_idx"]):03d}',
-        axis=1,
-    )
-    out = out.drop(columns=["装備番号"], errors='ignore')
+    # 装備番号を生成（既存の装備番号カラムがある場合は削除）
+    if "装備番号" in out.columns:
+        out = out.drop(columns=["装備番号"])
+    
+    # リスト内包表記で装備番号を生成
+    equipment_numbers = [
+        f'{int(row["_type_code"])}_{int(row["_rarity_code"])}_1_{int(row["_idx"]):03d}'
+        for _, row in out.iterrows()
+    ]
     out["装備番号"] = equipment_numbers
     
     return out.drop(columns=["_type_code", "_rarity_code", "_idx", "_row_order"])
