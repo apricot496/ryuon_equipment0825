@@ -63,20 +63,10 @@ ORDER BY "URL_Number" ASC;
     conn.execute('ALTER TABLE "new_equipment_img_scraping" RENAME TO "equipment_img_scraping"')
 
 
-def vacuum(conn: sqlite3.Connection) -> None:
-    """
-    VACUUM はトランザクション外で実行する必要があることが多いので、
-    commit後に実行する。
-    """
-    conn.execute("VACUUM")
-
-
 def main() -> None:
     conn = sqlite3.connect(str(DB_PATH))
     try:
         rebuild_equipment_img_scraping(conn)
-        conn.commit()
-        vacuum(conn)
         conn.commit()
     finally:
         conn.close()
