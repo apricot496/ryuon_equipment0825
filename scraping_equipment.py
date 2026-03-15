@@ -221,7 +221,7 @@ if __name__ == "__main__":
     now_branch = os.getenv("NOW_BRANCH")
     print(now_branch)
 
-    start = get_news_max_url() - 20
+    start = get_news_max_url() - 8
     if start <129:
         start = 129
     end = get_news_max_url()
