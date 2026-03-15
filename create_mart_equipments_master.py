@@ -37,6 +37,27 @@ def create_mart_equipments_master():
     print("Concatenating all dataframes...")
     master_df = pd.concat(all_df_list, ignore_index=True)
     
+    # データ型の統一
+    print("Normalizing data types...")
+    
+    # 整数カラムをInt64型に統一（NULL許容の整数）
+    integer_columns = ['体力', '攻撃力', '防御力']
+    for col in integer_columns:
+        if col in master_df.columns:
+            master_df[col] = pd.to_numeric(master_df[col], errors='coerce').astype('Int64')
+    
+    # 小数カラムをfloat型に統一（NULL許容）
+    float_columns = ['会心率', '回避率', '命中率']
+    for col in float_columns:
+        if col in master_df.columns:
+            master_df[col] = pd.to_numeric(master_df[col], errors='coerce')
+    
+    # 文字列カラムを統一
+    text_columns = ['装備名', '装備番号', 'レアリティ', 'アビリティ', 'アビリティカテゴリ', '装備種類']
+    for col in text_columns:
+        if col in master_df.columns:
+            master_df[col] = master_df[col].astype(str).replace('nan', None)
+    
     # mart_equipments_masterテーブルを作成（既存のテーブルは削除）
     print("Creating mart_equipments_master table...")
     cur = conn.cursor()
