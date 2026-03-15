@@ -86,6 +86,9 @@ jobs:
       - name: Update load_log.csv
         run: python update_load_csv.py
 
+      - name: Optimize database with VACUUM
+        run: python vacuum_db.py
+
       - name: Check file sizes
         run: |
           ls -lh equipment.db

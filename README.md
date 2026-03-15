@@ -39,7 +39,8 @@
   5. マスターテーブル作成（`create_mart_equipments_master.py`）
   6. 未チェック装備のエクスポート（`export_unchecked_equipment_to_gsheet.py`）
   7. ログ更新（`update_load_csv.py`）
-  8. `equipment.db`、`load_log.csv`、`static/` をコミットして push
+  8. データベース最適化（`vacuum_db.py`）
+  9. `equipment.db`、`load_log.csv`、`static/` をコミットして push
 
 
 ## 仕組み（データフロー）
@@ -140,6 +141,7 @@ python export_unchecked_equipment_to_gsheet.py
 - `create_mart_equipments_master.py`：全装備データを統合したマスターテーブル作成
 - `export_unchecked_equipment_to_gsheet.py`：未チェック装備を Google Sheets にエクスポート
 - `update_load_csv.py`：更新ログの記録
+- `vacuum_db.py`：データベースの最適化（VACUUM）
 
 ### その他
 - `static/`：装備画像などの静的ファイル
