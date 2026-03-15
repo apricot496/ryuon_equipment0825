@@ -58,10 +58,16 @@ jobs:
         run: |
           timeout -k 5s 120s python scraping_equipment.py || true
 
-      - name: BASE64 encode images and update DB
-        run: python trans_base64.py
+      - name: Remove duplicate equipment images
+        run: python index_drop_db.py
 
-      - name: Stay equipment data to gsheet
+      - name: Generate BASE64 images
+        run: python generate_base64_images.py
+
+      - name: Create mart_equipments_master table
+        run: python create_mart_equipments_master.py
+
+      - name: Export unchecked equipment to gsheet
         env:
           SPREADSHEET_KEY_NAME: ${{ secrets.SPREADSHEET_KEY_NAME }}
           GCP_TYPE: ${{ secrets.GCP_TYPE }}
@@ -75,10 +81,7 @@ jobs:
           GCP_AUTH_PROVIDER_CERT_URL: ${{ secrets.GCP_AUTH_PROVIDER_CERT_URL }}
           GCP_CLIENT_CERT_URL: ${{ secrets.GCP_CLIENT_CERT_URL }}
           GCP_UNIVERSE_DOMAIN: ${{ secrets.GCP_UNIVERSE_DOMAIN }}
-        run: python export_stay_equipment_to_gsheet.py
-
-      - name: Drop index
-        run: python index_drop_db.py
+        run: python export_unchecked_equipment_to_gsheet.py
 
       - name: Update load_log.csv
         run: python update_load_csv.py

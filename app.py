@@ -15,66 +15,29 @@ def load_data():
     conn = sqlite3.connect(DB_FILE)
 
     equipments_list = ["武器", "防具", "装飾"]
-    rarelity_order = ['ur', 'ksr', 'ssr']
     df_list = []
 
     for equipments in equipments_list:
-        equipment_df_concat_list = []
-        for  rarelity in rarelity_order:
-            sheet_name = f"{rarelity}{equipments}"
-            df = pd.read_sql(f"""
-WITH new_equipment_img_scraping AS (
-    SELECT DISTINCT
-        装備名
-        , BASE64
-        , レアリティ
-    FROM equipment_img_scraping
-    )
+        df = pd.read_sql(f"""
 SELECT 
-    s.装備名
+    m.装備名
     , e.BASE64 AS 画像
-    , 装備番号
-    , s.レアリティ
-    , s.体力
-    , s.攻撃力
-    , s.防御力
-    , s.会心率
-    , s.命中率
-    , s.回避率
-    , s.アビリティ
-    , s.アビリティカテゴリ
-FROM '{sheet_name}' AS s
-LEFT JOIN new_equipment_img_scraping AS e
-ON s.装備名 = e.装備名 AND s.レアリティ = e.レアリティ
-                              """
-                              , conn)
-            equipment_df_concat_list.append(df)
-        stay_df = pd.read_sql(f"""WITH new_equipment_img_scraping AS (
-    SELECT DISTINCT
-        装備名
-        , BASE64
-        , レアリティ
-    FROM equipment_img_scraping
-    )
-SELECT 
-    s.装備名
-    , e.BASE64 AS 画像
-    , 装備番号
-    , s.レアリティ
-    , s.体力
-    , s.攻撃力
-    , s.防御力
-    , s.会心率
-    , s.命中率
-    , s.回避率
-    , s.アビリティ
-    , s.アビリティカテゴリ
-FROM non_check_equipments AS s
-LEFT JOIN new_equipment_img_scraping AS e
-ON s.装備名 = e.装備名 AND s.レアリティ = e.レアリティ
-WHERE s.装備種類 = '{equipments}'""", conn)
-        equipment_df_concat_list.append(stay_df)
-        df = pd.concat(equipment_df_concat_list)
+    , m.装備番号
+    , m.レアリティ
+    , m.体力
+    , m.攻撃力
+    , m.防御力
+    , m.会心率
+    , m.命中率
+    , m.回避率
+    , m.アビリティ
+    , m.アビリティカテゴリ
+FROM mart_equipments_master AS m
+LEFT JOIN equipment_img_base64 AS e
+ON m.装備名 = e.装備名 AND m.レアリティ = e.レアリティ
+WHERE m.装備種類 = '{equipments}'
+""", conn)
+        
         df = df.sort_values('装備番号', ignore_index=True)
         df = df.replace('', pd.NA)
         df['check'] = False
