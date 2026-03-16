@@ -14,15 +14,18 @@ IMAGE_DIR = OUTPUT_DIR / "images"
 
 
 def get_latest_equipments(conn: sqlite3.Connection, limit: int = 10):
-    """URL_Numberが最も大きい装備をlimit件取得"""
+    """
+    URL_Numberが最も大きい装備をlimit件取得
+    
+    equipment_img_scrapingをベースに取得するため、
+    スプレッドシート未登録の装備（イベント報酬装備など）も含まれる
+    """
     query = """
     SELECT DISTINCT 
-        m.装備名,
-        m.レアリティ,
+        s.装備名,
+        s.レアリティ,
         s.URL_Number
-    FROM mart_equipments_master m
-    LEFT JOIN equipment_img_scraping s 
-        ON m.装備名 = s.装備名 AND m.レアリティ = s.レアリティ
+    FROM equipment_img_scraping s
     WHERE s.URL_Number IS NOT NULL AND s.URL_Number != 0
     ORDER BY CAST(s.URL_Number AS INTEGER) DESC
     LIMIT ?

@@ -76,6 +76,15 @@ def get_db_max_url():
 
 # ===== HTMLスクレイピング =====
 def get_equipment_tables(url: str):
+    """
+    指定したURLから装備情報を含むテーブルを取得する
+    
+    対応ケース:
+    - 通常の装備紹介ページ（ガチャ告知など）
+    - イベントページの報酬装備（救援イベントなど）
+    
+    検出条件: <th class="th30">装備名称</th> を含むテーブル
+    """
     headers = {"User-Agent": "Mozilla/5.0"}
     resp = requests.get(url, headers=headers, timeout=30)
     if resp.status_code != 200:
@@ -83,6 +92,7 @@ def get_equipment_tables(url: str):
     soup = BeautifulSoup(resp.text, "html.parser")
     equipment_info_table_list = []
     for table in soup.find_all("table"):
+        # 装備名称を含むテーブルを検出（通常ページ・イベントページ共通）
         if table.find("th", class_="th30", string="装備名称"):
             equipment_info_table_list.append(table)
     return equipment_info_table_list
@@ -221,10 +231,36 @@ if __name__ == "__main__":
     now_branch = os.getenv("NOW_BRANCH")
     print(now_branch)
 
-    start = get_news_max_url() - 8
-    if start <129:
-        start = 129
-    end = get_news_max_url()
+    # latest_scraping_num.jsonから最後にスクレイピングした番号を読み込む
+    latest_num = 0
+    if os.path.exists('latest_scraping_num.json'):
+        try:
+            with open('latest_scraping_num.json', 'r', encoding='utf-8') as f:
+                data = json.load(f)
+                latest_num = data.get('latest_scraping_num', 0)
+                print(f"前回スクレイピング番号: {latest_num}")
+        except Exception as e:
+            print(f"latest_scraping_num.json読み込みエラー: {e}")
+    
+    news_max = get_news_max_url()
+    
+    # スクレイピング範囲を決定
+    if latest_num > 0:
+        # 前回の続きから開始（最大50件まで）
+        start = latest_num + 1
+        # 未スクレイピングが多い場合は範囲を制限
+        if news_max - start > 50:
+            print(f"警告: 未スクレイピングが{news_max - start}件あります。50件ずつ処理します。")
+            end = start + 49
+        else:
+            end = news_max
+    else:
+        # latest_scraping_num.jsonがない場合は従来通り最新8件
+        start = news_max - 8
+        if start < 129:
+            start = 129
+        end = news_max
+    
     # 障害対応用（ローカル実行時コメントアウトを外す）
     # start = 5148
     # end = get_news_max_url()
@@ -243,8 +279,11 @@ if __name__ == "__main__":
             print(f"DB登録完了: {num}")
         else:
             # insert_to_db([{"URL_Number": num}])
-            with open('latest_scraping_num.json', 'w', encoding='utf-8') as f:
-                json.dump({"latest_scraping_num": num}, f, ensure_ascii=False, indent=2)
             print(f"空登録: {num}")
+        
+        # 処理した番号を記録（装備あり・なし問わず）
+        with open('latest_scraping_num.json', 'w', encoding='utf-8') as f:
+            json.dump({"latest_scraping_num": num}, f, ensure_ascii=False, indent=2)
+        
         time.sleep(1)
     print("スクレイピング完了")
