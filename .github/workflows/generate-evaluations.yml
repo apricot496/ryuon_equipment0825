@@ -2,6 +2,10 @@ name: Generate Equipment Evaluations
 
 on:
   workflow_dispatch:  # 手動実行
+  workflow_run:  # reload-db完了後に自動実行
+    workflows: ["Reload Sheets to DB"]
+    types:
+      - completed
   schedule:
     - cron: "30 6 * * *"   # JST 15:30 (毎日)
 
