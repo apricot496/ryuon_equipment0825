@@ -19,16 +19,6 @@ from dotenv import load_dotenv
 
 DB_URL = "sqlite:///./equipment.db"
 
-# =========================
-# 注: mart_equipments_master を使用するため FIX_TABLES は不要になりました
-# 以前のテーブルリストは参考として残します
-# FIX_TABLES = [
-#     "ssr武器", "ssr防具", "ssr装飾",
-#     "ksr武器", "ksr防具", "ksr装飾",
-#     "ur武器", "ur防具", "ur装飾",
-# ]
-# =========================
-
 # 元の差分抽出で必要なカラム（non_check_df のベース）
 BASE_COLUMNS = [
     "装備名",
@@ -161,11 +151,31 @@ def upsert_non_check_to_sqlite(engine: Engine, df: pd.DataFrame, table_name: str
 # =========================
 # Build non_check_df
 # =========================
+
+# 9シートのテーブル名リスト
+FIX_TABLES = [
+    "ssr武器", "ssr防具", "ssr装飾",
+    "ksr武器", "ksr防具", "ksr装飾",
+    "ur武器", "ur防具", "ur装飾",
+]
+
 def load_fix_equipments_df(engine: Engine) -> pd.DataFrame:
     """
-    mart_equipments_master から全ての確定済み装備を読み込む
+    9シート（ur武器、ksr武器、ssr武器、ur防具、ksr防具、ssr防具、ur装飾、ksr装飾、ssr装飾）から
+    全ての確定済み装備を読み込む
+    
+    注：mart_equipments_masterは使用しない（non_check_equipmentsを含むため循環参照になる）
     """
-    fix_df = _read_sql_table(engine, "mart_equipments_master")
+    dfs = []
+    for table_name in FIX_TABLES:
+        if _table_exists(engine, table_name):
+            df = _read_sql_table(engine, table_name)
+            dfs.append(df)
+    
+    if not dfs:
+        raise RuntimeError("9シートのテーブルが1つも見つかりませんでした")
+    
+    fix_df = pd.concat(dfs, ignore_index=True)
     return fix_df.drop_duplicates(subset=["装備名", "レアリティ"], keep="first").reset_index(drop=True)
 
 
@@ -208,21 +218,33 @@ def _mse(a: np.ndarray, b: np.ndarray) -> float:
 
 def find_reference_images(engine: Engine, static_dir: Path) -> dict[str, Path]:
     """
-    mart_equipments_master から装備種類ごとの参照画像を探す
+    9シートから装備種類ごとの参照画像を探す
     """
-    master_df = _read_sql_table(engine, "mart_equipments_master")
-    
     refs: dict[str, Path] = {}
-    for equip_type in ["武器", "防具", "装飾"]:
+    
+    # 各装備種類に対応するテーブルリスト
+    type_tables = {
+        "武器": ["ur武器", "ksr武器", "ssr武器"],
+        "防具": ["ur防具", "ksr防具", "ssr防具"],
+        "装飾": ["ur装飾", "ksr装飾", "ssr装飾"],
+    }
+    
+    for equip_type, table_names in type_tables.items():
         found: Path | None = None
         
-        # 装備種類でフィルタリング
-        type_df = master_df[master_df["装備種類"] == equip_type]
-        
-        for _, row in type_df[["装備名", "レアリティ"]].dropna().iterrows():
-            p = static_dir / f'{row["装備名"]}_{row["レアリティ"]}.png'
-            if p.exists():
-                found = p
+        for table_name in table_names:
+            if not _table_exists(engine, table_name):
+                continue
+            
+            df = _read_sql_table(engine, table_name)
+            
+            for _, row in df[["装備名", "レアリティ"]].dropna().iterrows():
+                p = static_dir / f'{row["装備名"]}_{row["レアリティ"]}.png'
+                if p.exists():
+                    found = p
+                    break
+            
+            if found:
                 break
         
         if found is None:
