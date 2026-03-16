@@ -67,6 +67,15 @@ jobs:
       - name: Create mart_equipments_master table
         run: python create_mart_equipments_master.py
 
+      - name: Install Playwright
+        run: pip install playwright
+
+      - name: Install Playwright browsers
+        run: playwright install chromium --with-deps
+
+      - name: Generate evaluation files for latest 10 equipments
+        run: python generate_evaluations_for_github_action.py
+
       - name: Export unchecked equipment to gsheet
         env:
           SPREADSHEET_KEY_NAME: ${{ secrets.SPREADSHEET_KEY_NAME }}
@@ -110,7 +119,7 @@ jobs:
 
           git status --porcelain
 
-          git add equipment.db load_log.csv static/ || true
+          git add equipment.db load_log.csv static/ evaluation_sheets/ || true
 
           now=$(date '+%Y-%m-%d %H:%M:%S')
           git commit -m "[$now] equipment.db 更新" || echo "No changes to commit"
