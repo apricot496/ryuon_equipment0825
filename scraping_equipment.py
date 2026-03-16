@@ -8,7 +8,6 @@ import re
 import os
 import time
 import sqlite3
-import json
 
 IMG_DIR = "static"
 DB_PATH = "equipment.db"
@@ -231,35 +230,13 @@ if __name__ == "__main__":
     now_branch = os.getenv("NOW_BRANCH")
     print(now_branch)
 
-    # latest_scraping_num.jsonから最後にスクレイピングした番号を読み込む
-    latest_num = 0
-    if os.path.exists('latest_scraping_num.json'):
-        try:
-            with open('latest_scraping_num.json', 'r', encoding='utf-8') as f:
-                data = json.load(f)
-                latest_num = data.get('latest_scraping_num', 0)
-                print(f"前回スクレイピング番号: {latest_num}")
-        except Exception as e:
-            print(f"latest_scraping_num.json読み込みエラー: {e}")
-    
     news_max = get_news_max_url()
     
-    # スクレイピング範囲を決定
-    if latest_num > 0:
-        # 前回の続きから開始（最大50件まで）
-        start = latest_num + 1
-        # 未スクレイピングが多い場合は範囲を制限
-        if news_max - start > 50:
-            print(f"警告: 未スクレイピングが{news_max - start}件あります。50件ずつ処理します。")
-            end = start + 49
-        else:
-            end = news_max
-    else:
-        # latest_scraping_num.jsonがない場合は従来通り最新8件
-        start = news_max - 8
-        if start < 129:
-            start = 129
-        end = news_max
+    # 最新から20件をスクレイピング（URL番号は作成順のため、漏れを防ぐため広めに取得）
+    start = news_max - 20
+    if start < 129:
+        start = 129
+    end = news_max
     
     # 障害対応用（ローカル実行時コメントアウトを外す）
     # start = 5148
@@ -278,12 +255,7 @@ if __name__ == "__main__":
             insert_to_db(equips)
             print(f"DB登録完了: {num}")
         else:
-            # insert_to_db([{"URL_Number": num}])
             print(f"空登録: {num}")
-        
-        # 処理した番号を記録（装備あり・なし問わず）
-        with open('latest_scraping_num.json', 'w', encoding='utf-8') as f:
-            json.dump({"latest_scraping_num": num}, f, ensure_ascii=False, indent=2)
         
         time.sleep(1)
     print("スクレイピング完了")
