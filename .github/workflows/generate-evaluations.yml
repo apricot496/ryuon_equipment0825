@@ -6,8 +6,6 @@ on:
     workflows: ["Reload Sheets to DB"]
     types:
       - completed
-  schedule:
-    - cron: "30 6 * * *"   # JST 15:30 (毎日)
 
 jobs:
   generate-evaluations:

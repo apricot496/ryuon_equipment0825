@@ -3,7 +3,7 @@ name: Reload Sheets to DB
 on:
   workflow_dispatch:
   schedule:
-    - cron: "0 6 * * *"   # JST 15:00
+    - cron: "13 5 * * *"   # JST 14:13
 
 jobs:
   build:
