@@ -26,8 +26,16 @@ STATUS_COLUMNS = {
 
 
 def get_equipment_data(conn: sqlite3.Connection, equipment_name: str, rarity: str) -> Dict:
-    """指定された装備のデータを取得（URL_NumberとIMG_URLをequipment_img_scrapingから取得）"""
+    """
+    指定された装備のデータを取得
+    
+    優先順位：
+    1. mart_equipments_masterにある場合はそちらを使用（完全なデータ）
+    2. equipment_img_scrapingのみにある場合はそちらを使用（装備種類などは不明）
+    """
     cur = conn.cursor()
+    
+    # まずmart_equipments_masterから取得を試みる
     cur.execute("""
         SELECT 
             m.*,
@@ -38,6 +46,33 @@ def get_equipment_data(conn: sqlite3.Connection, equipment_name: str, rarity: st
         LEFT JOIN equipment_img_scraping s 
             ON m.装備名 = s.装備名 AND m.レアリティ = s.レアリティ
         WHERE m.装備名 = ? AND m.レアリティ = ?
+    """, (equipment_name, rarity))
+    
+    row = cur.fetchone()
+    if row:
+        columns = [d[0] for d in cur.description]
+        return dict(zip(columns, row))
+    
+    # mart_equipments_masterになければ、equipment_img_scrapingから取得
+    cur.execute("""
+        SELECT 
+            装備名,
+            レアリティ,
+            体力,
+            攻撃力,
+            防御力,
+            会心率,
+            回避率,
+            命中率,
+            アビリティ,
+            URL_Number,
+            IMG_URL,
+            画像名,
+            NULL as 装備種類,
+            NULL as アビリティカテゴリ,
+            NULL as 装備番号
+        FROM equipment_img_scraping
+        WHERE 装備名 = ? AND レアリティ = ?
     """, (equipment_name, rarity))
     
     row = cur.fetchone()
