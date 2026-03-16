@@ -64,9 +64,6 @@ jobs:
       - name: Generate BASE64 images
         run: python generate_base64_images.py
 
-      - name: Create mart_equipments_master table
-        run: python create_mart_equipments_master.py
-
       - name: Export unchecked equipment to gsheet
         env:
           SPREADSHEET_KEY_NAME: ${{ secrets.SPREADSHEET_KEY_NAME }}
@@ -82,6 +79,9 @@ jobs:
           GCP_CLIENT_CERT_URL: ${{ secrets.GCP_CLIENT_CERT_URL }}
           GCP_UNIVERSE_DOMAIN: ${{ secrets.GCP_UNIVERSE_DOMAIN }}
         run: python export_unchecked_equipment_to_gsheet.py
+
+      - name: Create mart_equipments_master table
+        run: python create_mart_equipments_master.py
 
       - name: Update load_log.csv
         run: python update_load_csv.py
