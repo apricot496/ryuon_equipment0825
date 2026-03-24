@@ -325,7 +325,7 @@ def analyze_build_type(equipment: Dict, rankings: Dict) -> Tuple[str, List[str]]
         # 上位5位のステータス名を表示
         top5_sorted = sorted(top5_statuses)
         top5_display = "・".join(top5_sorted)
-        return (f"🌟 上位型 ({top5_display})", top5_sorted)
+        return (f"上位型 ({top5_display})", top5_sorted)
     
     return ("", [])
 
@@ -593,7 +593,7 @@ def generate_evaluation_html(conn: sqlite3.Connection, equipment_name: str, rari
     ability_category = equipment.get("アビリティカテゴリ", "なし") or "なし"
     ability_html = ""
     if ability and ability != "なし" and ability_category != "なし":
-        from ability_evaluator import evaluate_ability
+        from ability_evaluator import evaluate_ability, get_ability_rating
         eval_result = evaluate_ability(
             ability,
             ability_category,
@@ -621,15 +621,8 @@ def generate_evaluation_html(conn: sqlite3.Connection, equipment_name: str, rari
                 ability_html += f'<li>抽出された効果量: {eval_result["effect_value"]:.1f}</li>'
             ability_html += '</ul>'
             
-            score = eval_result['score']
-            if score >= 80:
-                ability_html += '<p class="rating excellent">🌟 <strong>非常に優秀なアビリティ</strong></p>'
-            elif score >= 60:
-                ability_html += '<p class="rating good">⭐ <strong>優秀なアビリティ</strong></p>'
-            elif score >= 40:
-                ability_html += '<p class="rating practical">✨ <strong>実用的なアビリティ</strong></p>'
-            else:
-                ability_html += '<p class="rating situational">📝 <strong>状況次第で有用</strong></p>'
+            rating_class, rating_emoji, rating_label = get_ability_rating(eval_result['score'])
+            ability_html += f'<p class="rating {rating_class}">{rating_emoji} <strong>{rating_label}</strong></p>'
     else:
         ability_html += '<h2>アビリティ評価</h2><p>アビリティなし</p>'
     
@@ -1054,7 +1047,6 @@ def generate_evaluation_html(conn: sqlite3.Connection, equipment_name: str, rari
                 <li style="padding-left: 20px;">型非該当時は6ステータスの平均スコアを採用</li>
                 <li><strong>アビリティスコア</strong>: (カテゴリ重要度 + 効果量スコア) × 発動条件倍率 × 0.5</li>
                 <li style="padding-left: 20px;">複数カテゴリのアビリティは、カテゴリ重要度が最大のカテゴリを代表カテゴリとして計算</li>
-                <li style="padding-left: 20px;">カテゴリ重要度/効果係数: mock_評価/ability_category_settings.csv でカテゴリごとに調整</li>
                 <li style="padding-left: 20px;">発動条件倍率: 条件文に応じて 0.5〜1.0（HP条件はしきい値別ルールを適用）</li>
                 <li style="padding-left: 20px;">効果量スコア: 同カテゴリ×装備種類内で効果量を正規化（0〜100点）</li>
             </ul>

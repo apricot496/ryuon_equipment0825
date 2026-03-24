@@ -8,51 +8,10 @@ from pathlib import Path
 from typing import Dict, List, Optional, Tuple
 
 DB_FILE = "equipment.db"
-CATEGORY_SETTINGS_FILE = Path("mock_評価/ability_category_settings.csv")
-
-# カテゴリ重要度（ユーザー指定）
-CATEGORY_IMPORTANCE = {
-    "BSCT加速": 100,
-    "BSCT進行": 100,
-    "BS後退低減": 100,
-    "HACT加速": 100,
-    "ダメージカット": 80,
-    "ダメージ増加": 80,
-    "ダメージ無効化": 80,
-    "ヒートゲージ上昇": 100,
-    "不死": 90,
-    "会心威力上昇": 100,
-    "会心率上昇": 100,
-    "体力上昇": 60,
-    "再起効果強化": 50,
-    "命中率上昇": 100,
-    "回復": 100,
-    "回避率上昇": 90,
-    "攻撃力上昇": 100,
-    "敵BSCT減少": 80,
-    "敵BSCT減速": 80,
-    "敵ヒートゲージ増加": 100,
-    "敵会心率減少": 50,
-    "敵回避率減少": 50,
-    "敵攻撃減少": 50,
-    "敵速度減少": 50,
-    "敵防御減少": 50,
-    "特殊効果付与": 100,
-    "特殊効果確率上昇": 100,
-    "状態異常付与": 100,
-    "状態異常確率上昇": 100,
-    "被特殊効果確率低減": 100,
-    "被状態異常確率低減": 100,
-    "資金獲得量上昇": 0,
-    "速度上昇": 100,
-    "連打カット": 50,
-    "連打増幅": 50,
-    "防御力上昇": 60,
-}
-
-# カテゴリ効果係数（初期値）
-# 効果量ランクに乗算して最終効果ランクを調整する
-CATEGORY_EFFECT_WEIGHT = {key: 1.0 for key in CATEGORY_IMPORTANCE.keys()}
+CATEGORY_SETTINGS_FILE = Path("config/ability_category_settings.csv")
+LEGACY_CATEGORY_SETTINGS_FILE = Path("mock_評価/ability_category_settings.csv")
+DEFAULT_CATEGORY_IMPORTANCE = 60.0
+DEFAULT_CATEGORY_EFFECT_WEIGHT = 1.0
 
 _CATEGORY_SETTINGS_CACHE = None
 
@@ -93,13 +52,15 @@ def _load_category_settings() -> Dict[str, Dict[str, float]]:
 
     settings: Dict[str, Dict[str, float]] = {}
 
-    if not CATEGORY_SETTINGS_FILE.exists():
+    settings_file = CATEGORY_SETTINGS_FILE if CATEGORY_SETTINGS_FILE.exists() else LEGACY_CATEGORY_SETTINGS_FILE
+
+    if not settings_file.exists():
         _CATEGORY_SETTINGS_CACHE = settings
         return settings
 
     import csv
 
-    with CATEGORY_SETTINGS_FILE.open("r", encoding="utf-8-sig", newline="") as f:
+    with settings_file.open("r", encoding="utf-8-sig", newline="") as f:
         reader = csv.DictReader(f)
         for row in reader:
             category = (row.get("カテゴリ") or row.get("category") or "").strip()
@@ -119,19 +80,19 @@ def _load_category_settings() -> Dict[str, Dict[str, float]]:
 
 
 def get_category_importance(category: str) -> float:
-    """カテゴリ重要度を取得（CSV設定 > デフォルト辞書 > 60）"""
+    """カテゴリ重要度を取得（CSV設定 > 既定値）"""
     settings = _load_category_settings()
     if category in settings and settings[category].get("importance") is not None:
         return settings[category]["importance"]
-    return CATEGORY_IMPORTANCE.get(category, 60)
+    return DEFAULT_CATEGORY_IMPORTANCE
 
 
 def get_category_effect_weight(category: str) -> float:
-    """カテゴリ効果係数を取得（CSV設定 > デフォルト辞書 > 1.0）"""
+    """カテゴリ効果係数を取得（CSV設定 > 既定値）"""
     settings = _load_category_settings()
     if category in settings and settings[category].get("effect_weight") is not None:
         return settings[category]["effect_weight"]
-    return CATEGORY_EFFECT_WEIGHT.get(category, 1.0)
+    return DEFAULT_CATEGORY_EFFECT_WEIGHT
 
 def _extract_probability_percent(text: str) -> Optional[float]:
     """テキストから発動確率(%)を抽出"""
@@ -729,6 +690,17 @@ def evaluate_ability(
     }
 
 
+def get_ability_rating(score: float) -> Tuple[str, str, str]:
+    """アビリティ評価コメントを返す（css_class, emoji, label）"""
+    if score >= 80:
+        return "excellent", "🌟", "非常に優秀なアビリティ"
+    if score >= 60:
+        return "good", "⭐", "優秀なアビリティ"
+    if score >= 40:
+        return "practical", "✨", "実用的なアビリティ"
+    return "situational", "📝", "状況次第で有用"
+
+
 def format_ability_evaluation(
     ability_text: str,
     category: str,
@@ -771,15 +743,8 @@ def format_ability_evaluation(
     
     text += "\n"
     
-    # 評価コメント（100点満点基準）
-    score = eval_result['score']
-    if score >= 80:
-        text += "🌟 **非常に優秀なアビリティ**\n"
-    elif score >= 60:
-        text += "⭐ **優秀なアビリティ**\n"
-    elif score >= 40:
-        text += "✨ **実用的なアビリティ**\n"
-    else:
-        text += "📝 **状況次第で有用**\n"
+    # 評価コメント（共通判定）
+    _, emoji, label = get_ability_rating(eval_result['score'])
+    text += f"{emoji} **{label}**\n"
     
     return text
