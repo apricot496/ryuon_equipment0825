@@ -192,6 +192,15 @@ def evaluate_condition(ability_text: str) -> float:
     """
     text = (ability_text or "").replace('％', '%').replace('\n', '').replace('\r', '')
 
+    # 「状態異常を除く全ダメージ増加/カット」は状態異常時条件ではなく常時効果として扱う
+    if (
+        ("状態異常を除く" in text or "状態異常以外" in text)
+        and ("ダメージ増加" in text or "ダメージカット" in text)
+    ):
+        # HP/人数などの明示条件がない場合のみ常時扱い
+        if not any(x in text for x in ["時", "とき", "以上", "以下", "人数", "生存", "不在", "特性", "通常攻撃", "攻撃時", "被ダメージ"]):
+            return 1.0
+
     # 状態異常時（最優先）
     # 自身/自分が状態異常時: 0.5
     if re.search(r'(自身|自分).*(状態異常時|状態異常)', text):
