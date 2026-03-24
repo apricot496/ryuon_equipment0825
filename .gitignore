@@ -7,6 +7,7 @@ equipment_json_list/
 equipment.db
 元画像スクショ/
 mock_評価/
+analysis/
 
 # Python
 __pycache__/

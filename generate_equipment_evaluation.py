@@ -84,42 +84,76 @@ def get_equipment_data(conn: sqlite3.Connection, equipment_name: str, rarity: st
 
 
 def calculate_status_rankings(conn: sqlite3.Connection, equipment: Dict) -> Dict:
-    """同装備種類内でのステータスランキングを計算"""
+    """
+    同装備種類内でのステータスランキングを計算
+    
+    - 体力、攻撃力、防御力: 同装備種類 AND 同レアリティで比較
+    - 会心率、回避率、命中率: 同装備種類のみで比較
+    """
     equipment_type = equipment["装備種類"]
+    rarity = equipment.get("レアリティ")
     status_cols = STATUS_COLUMNS.get(equipment_type, [])
     
     rankings = {}
     
+    # レアリティで区分するステータス
+    rarity_based_stats = ["体力", "攻撃力", "防御力"]
+    
     for status in status_cols:
-        # 装備種類内での全装備のステータスを取得
-        df = pd.read_sql(f"""
-            SELECT {status}, 装備名, レアリティ
-            FROM mart_equipments_master
-            WHERE 装備種類 = ? AND {status} IS NOT NULL AND {status} > 0
-            ORDER BY {status} DESC
-        """, conn, params=(equipment_type,))
+        # 現在の装備のステータス値を取得
+        current_value = equipment.get(status)
         
-        if df.empty or equipment[status] is None or equipment[status] == 0:
+        # NaN、None、0をスキップ
+        if pd.isna(current_value) or current_value is None or current_value == 0:
+            continue
+        
+        try:
+            current_value = float(current_value)
+        except (ValueError, TypeError):
+            continue
+        
+        # ステータスに応じてフィルタ条件を変更
+        if status in rarity_based_stats:
+            # 体力・攻撃力・防御力: 同装備種類 AND 同レアリティ
+            df = pd.read_sql(f"""
+                SELECT {status}, 装備名, レアリティ
+                FROM mart_equipments_master
+                WHERE 装備種類 = ? AND レアリティ = ? AND {status} IS NOT NULL AND {status} > 0
+                ORDER BY {status} DESC
+            """, conn, params=(equipment_type, rarity))
+        else:
+            # 会心率・回避率・命中率: 同装備種類のみ
+            df = pd.read_sql(f"""
+                SELECT {status}, 装備名, レアリティ
+                FROM mart_equipments_master
+                WHERE 装備種類 = ? AND {status} IS NOT NULL AND {status} > 0
+                ORDER BY {status} DESC
+            """, conn, params=(equipment_type,))
+        
+        if df.empty:
             continue
         
         # ランキング計算
         total_count = len(df)
-        current_value = float(equipment[status])
         rank = (df[status] > current_value).sum() + 1
-        top_value = df[status].iloc[0]
-        diff = top_value - current_value
+        max_value = df[status].max()
+        min_value = df[status].min()
+        diff = max_value - current_value
         
-        # スコア計算（1位=100点、最下位=50点）
-        if total_count == 1:
+        # スコア計算（最低値〜最高値の範囲で0〜100点）
+        if max_value == min_value:
+            # 最高値=最低値（1つしかデータがない、または全て同じ値）
             score = 100.0
         else:
-            score = 100.0 - ((rank - 1) / (total_count - 1)) * 50.0
+            score = 100.0 * (current_value - min_value) / (max_value - min_value)
         
         rankings[status] = {
             "rank": rank,
             "total": total_count,
             "diff": diff,
             "value": current_value,
+            "max": max_value,
+            "min": min_value,
             "score": score
         }
     
@@ -128,7 +162,12 @@ def calculate_status_rankings(conn: sqlite3.Connection, equipment: Dict) -> Dict
 
 def calculate_build_type_combination_rankings(conn: sqlite3.Connection, equipment: Dict, build_type_statuses: List[str]) -> Dict:
     """
-    型内での2種ステータス組み合わせランキングを計算
+    型内での2種ステータス組み合わせランキングを計算（新仕様）
+
+    新仕様:
+    - 型に当てはまる各2ステータス組み合わせごとに、同種装備・同レアリティ内で再計算
+    - 各ステータスをmin-max正規化（0〜100）し、2ステータス平均を組み合わせスコアとする
+    - 複数の型/組み合わせに当てはまる場合は、最も高い組み合わせスコアを採用
     
     Args:
         conn: データベース接続
@@ -138,50 +177,91 @@ def calculate_build_type_combination_rankings(conn: sqlite3.Connection, equipmen
     Returns:
         各組み合わせでのランキング情報
     """
-    equipment_type = equipment["装備種類"]
+    equipment_type = equipment.get("装備種類")
+    rarity = equipment.get("レアリティ")
     combination_rankings = {}
-    
-    # 2種類の組み合わせを生成
-    for status_pair in combinations(build_type_statuses, 2):
-        status1, status2 = status_pair
-        
-        # 両方のステータスを持つ装備のみを対象
-        if equipment.get(status1) and equipment[status1] > 0 and equipment.get(status2) and equipment[status2] > 0:
-            # 合計値でランキング
+
+    if not equipment_type or not rarity:
+        return combination_rankings
+
+    status_cols = STATUS_COLUMNS.get(equipment_type, [])
+    active_statuses = {
+        col for col in status_cols
+        if pd.notna(equipment.get(col)) and equipment.get(col) not in [None, 0]
+    }
+
+    offense_stats = {"攻撃力", "会心率", "命中率"}
+    defense_stats = {"体力", "防御力", "回避率"}
+
+    type_pairs = {
+        "襲撃編成型": [pair for pair in combinations(sorted(active_statuses & offense_stats), 2)],
+        "迎撃編成耐久型": [pair for pair in combinations(sorted(active_statuses & defense_stats), 2)],
+        "迎撃編成撃退型": []
+    }
+
+    if {"防御力", "命中率"}.issubset(active_statuses):
+        type_pairs["迎撃編成撃退型"].append(("防御力", "命中率"))
+    if {"防御力", "会心率"}.issubset(active_statuses):
+        type_pairs["迎撃編成撃退型"].append(("防御力", "会心率"))
+
+    type_display = {
+        "襲撃編成型": "⚡ 襲撃編成型",
+        "迎撃編成耐久型": "🛡️ 迎撃編成耐久型",
+        "迎撃編成撃退型": "⚔️ 迎撃編成撃退型",
+    }
+
+    for build_type, pairs in type_pairs.items():
+        for status1, status2 in pairs:
+            # 同種装備・同レアリティ・同ステータス組み合わせ（2ステータスを持つ）で比較
             df = pd.read_sql(f"""
-                SELECT {status1}, {status2}, 
-                       ({status1} + {status2}) as total,
-                       装備名, レアリティ
+                SELECT {status1}, {status2}, 装備名, レアリティ
                 FROM mart_equipments_master
-                WHERE 装備種類 = ? 
+                WHERE 装備種類 = ?
+                AND レアリティ = ?
                 AND {status1} IS NOT NULL AND {status1} > 0
                 AND {status2} IS NOT NULL AND {status2} > 0
-                ORDER BY total DESC
-            """, conn, params=(equipment_type,))
-            
-            if not df.empty:
-                current_total = float(equipment[status1]) + float(equipment[status2])
-                total_count = len(df)
-                rank = (df['total'] > current_total).sum() + 1
-                top_value = df['total'].iloc[0]
-                diff = top_value - current_total
-                
-                # スコア計算
-                if total_count == 1:
-                    score = 100.0
-                else:
-                    score = 100.0 - ((rank - 1) / (total_count - 1)) * 50.0
-                
-                combo_key = f"{status1}・{status2}"
-                combination_rankings[combo_key] = {
-                    "rank": rank,
-                    "total": total_count,
-                    "diff": diff,
-                    "value": current_total,
-                    "score": score,
-                    "statuses": [status1, status2]
-                }
-    
+            """, conn, params=(equipment_type, rarity))
+
+            if df.empty:
+                continue
+
+            try:
+                current1 = float(equipment.get(status1, 0) or 0)
+                current2 = float(equipment.get(status2, 0) or 0)
+            except (ValueError, TypeError):
+                continue
+
+            min1, max1 = df[status1].min(), df[status1].max()
+            min2, max2 = df[status2].min(), df[status2].max()
+
+            score1 = 100.0 if max1 == min1 else 100.0 * (current1 - min1) / (max1 - min1)
+            score2 = 100.0 if max2 == min2 else 100.0 * (current2 - min2) / (max2 - min2)
+            combo_score = (score1 + score2) / 2
+
+            # 同比較母集団内での組み合わせランク（同スコア基準）
+            df = df.copy()
+            df["s1"] = 100.0 if max1 == min1 else 100.0 * (df[status1] - min1) / (max1 - min1)
+            df["s2"] = 100.0 if max2 == min2 else 100.0 * (df[status2] - min2) / (max2 - min2)
+            df["combo_score"] = (df["s1"] + df["s2"]) / 2
+
+            total_count = len(df)
+            rank = (df["combo_score"] > combo_score).sum() + 1
+            top_score = df["combo_score"].max()
+            diff = top_score - combo_score
+
+            combo_key = f"{build_type}:{status1}・{status2}"
+            combination_rankings[combo_key] = {
+                "rank": int(rank),
+                "total": int(total_count),
+                "diff": float(diff),
+                "value": float(current1 + current2),
+                "score": float(combo_score),
+                "statuses": [status1, status2],
+                "build_type": build_type,
+                "build_type_display": type_display[build_type],
+                "combo_name": f"{status1}・{status2}",
+            }
+
     return combination_rankings
 
 
@@ -189,16 +269,22 @@ def analyze_build_type(equipment: Dict, rankings: Dict) -> Tuple[str, List[str]]
     """
     ステータス組み合わせを分析してビルドタイプを判定
     
+    判定順序:
+    1. 迎撃編成撃退型: 防御力+命中率、または防御力+会心率
+    2. 襲撃編成型: 攻撃力・会心率・命中率のうち2種以上
+    3. 迎撃編成耐久型: 体力・防御力・回避率のうち2種以上
+    4. 上位5位以内のステータスがあれば表示、なければ「なし」
+    
     Returns:
         (型名, 型に含まれるステータスのリスト)
     """
     equipment_type = equipment["装備種類"]
     status_cols = STATUS_COLUMNS.get(equipment_type, [])
     
-    # 0でないステータスをカウント
+    # 0でない・NaNでないステータスをカウント
     active_statuses = {
         col: equipment[col] for col in status_cols 
-        if equipment.get(col) and equipment[col] > 0
+        if pd.notna(equipment.get(col)) and equipment[col] != 0
     }
     
     if len(active_statuses) == 0:
@@ -210,7 +296,7 @@ def analyze_build_type(equipment: Dict, rankings: Dict) -> Tuple[str, List[str]]
     offense_stats = {"攻撃力", "会心率", "命中率"}
     defense_stats = {"体力", "防御力", "回避率"}
     
-    # 1. 迎撃編成撃退型の判定 (防御力 + 命中率 or 会心率)
+    # 1. 迎撃編成撃退型の判定（最優先: 防御力で攻撃するため）
     if "防御力" in status_names:
         if "命中率" in status_names:
             return ("⚔️ 迎撃編成撃退型 (防御力+命中率)", ["防御力", "命中率"])
@@ -231,48 +317,40 @@ def analyze_build_type(equipment: Dict, rankings: Dict) -> Tuple[str, List[str]]
         defense_display = "・".join(defense_list_sorted)
         return (f"🛡️ 迎撃編成耐久型 ({defense_display})", defense_list_sorted)
     
-    # 4. その他: 上位5位以内で判定
-    top5_statuses = {stat for stat, data in rankings.items() if data["rank"] <= 5}
+    # 4. その他: 単一ステータスまたはその他の組み合わせ
+    # 上位5位以内のステータスがあるかチェック
+    top5_statuses = [stat for stat, data in rankings.items() if data["rank"] <= 5]
     
-    if not top5_statuses:
-        return ("", [])  # 上位5位以内のステータスがない場合は評価なし
-    
-    # 上位5位以内のステータスで判定
-    if top5_statuses & offense_stats:
-        top_offense_sorted = sorted(top5_statuses & offense_stats)
-        top_offense_display = "・".join(top_offense_sorted)
-        return (f"⚡ 襲撃編成型 ({top_offense_display})", top_offense_sorted)
-    elif top5_statuses & defense_stats:
-        top_defense_sorted = sorted(top5_statuses & defense_stats)
-        top_defense_display = "・".join(top_defense_sorted)
-        return (f"🛡️ 迎撃編成型 ({top_defense_display})", top_defense_sorted)
+    if top5_statuses:
+        # 上位5位のステータス名を表示
+        top5_sorted = sorted(top5_statuses)
+        top5_display = "・".join(top5_sorted)
+        return (f"🌟 上位型 ({top5_display})", top5_sorted)
     
     return ("", [])
 
 
 def calculate_overall_status_score(rankings: Dict, build_type_rankings: Dict = None) -> Tuple[float, str]:
     """
-    総合ステータススコアを計算（最高値適用）
+    総合ステータススコアを計算（平均値）
     
     Returns:
-        (スコア, 評価種別: "同装備種類内評価" or "型内評価")
+        (スコア, 評価種別: "平均値")
     """
+    # 型評価に当てはまる場合は、型内再計算スコア（最高値）を採用
+    if build_type_rankings:
+        best = max(build_type_rankings.values(), key=lambda x: x["score"])
+        score_type = f'{best["build_type_display"]} ({best["combo_name"]})'
+        return (best["score"], score_type)
+
     if not rankings:
         return (0.0, "")
-    
-    # 同装備種類内評価：各ステータススコアの最高値
-    base_score = max([data["score"] for data in rankings.values()])
-    best_score = base_score
-    best_type = "同装備種類内評価"
-    
-    # 型内評価：組み合わせランキングの最高値
-    if build_type_rankings:
-        type_score = max([data["score"] for data in build_type_rankings.values()])
-        if type_score > best_score:
-            best_score = type_score
-            best_type = "型内評価"
-    
-    return (best_score, best_type)
+
+    # 型に当てはまらない場合は従来通り、各ステータススコアの平均値
+    scores = [data["score"] for data in rankings.values()]
+    avg_score = sum(scores) / len(scores)
+
+    return (avg_score, "平均値")
 
 
 def find_superior_equipment(conn: sqlite3.Connection, equipment: Dict, ability_score: float) -> Dict:
@@ -291,6 +369,7 @@ def find_superior_equipment(conn: sqlite3.Connection, equipment: Dict, ability_s
         }
     """
     equipment_type = equipment['装備種類']
+    current_ability_category = (equipment.get('アビリティカテゴリ') or '').strip()
     
     # ステータスカラムを取得
     status_cols = STATUS_COLUMNS.get(equipment_type, [])
@@ -368,7 +447,13 @@ def find_superior_equipment(conn: sqlite3.Connection, equipment: Dict, ability_s
         if ability_text and ability_text.strip() and ability_text != "なし":
             ability_category = candidate.get('アビリティカテゴリ', 'なし')
             if ability_category and ability_category != "なし":
-                ability_eval = evaluate_ability(ability_text, ability_category, equipment_type)
+                ability_eval = evaluate_ability(
+                    ability_text,
+                    ability_category,
+                    equipment_type,
+                    equipment_name=candidate.get('装備名'),
+                    rarity=candidate.get('レアリティ'),
+                )
                 candidate_ability_score = ability_eval.get('score', 0)
                 abilities.append(ability_text)
         
@@ -397,8 +482,14 @@ def find_superior_equipment(conn: sqlite3.Connection, equipment: Dict, ability_s
         if has_higher_stat:
             status_superior_list.append(item_data)
         
-        # アビリティスコアが上位
-        if candidate_ability_score > ability_score:
+        # アビリティ上位互換は「同じアビリティカテゴリ」かつ「アビリティスコアが上位」
+        candidate_ability_category = (candidate.get('アビリティカテゴリ') or '').strip()
+        if (
+            current_ability_category
+            and candidate_ability_category
+            and candidate_ability_category == current_ability_category
+            and candidate_ability_score > ability_score
+        ):
             ability_superior_list.append(item_data)
     
     # ステータス上位互換：ステータス合計値が最も高いもの
@@ -459,11 +550,14 @@ def generate_evaluation_html(conn: sqlite3.Connection, equipment_name: str, rari
     # ステータス評価HTML
     rankings = calculate_status_rankings(conn, equipment)
     build_type_name, build_type_statuses = analyze_build_type(equipment, rankings)
-    
-    # 型内評価（2種以上のステータスがある場合のみ）
-    build_type_rankings = {}
-    if len(build_type_statuses) >= 2:
-        build_type_rankings = calculate_build_type_combination_rankings(conn, equipment, build_type_statuses)
+
+    # 型内評価（新仕様: 型候補の全2種組み合わせを再計算）
+    build_type_rankings = calculate_build_type_combination_rankings(conn, equipment, build_type_statuses)
+
+    # 複数型に当てはまる場合は最高スコアの型を採用
+    if build_type_rankings:
+        best_build = max(build_type_rankings.values(), key=lambda x: x["score"])
+        build_type_name = f'{best_build["build_type_display"]} ({best_build["combo_name"]})'
     
     status_html = ""
     if rankings:
@@ -482,8 +576,9 @@ def generate_evaluation_html(conn: sqlite3.Connection, equipment_name: str, rari
     # 型内評価（存在する場合）
     if build_type_rankings:
         status_html += f'<h3>型内ステータス組み合わせランキング</h3><ul>'
-        for combo_name, data in build_type_rankings.items():
-            status_html += f'<li>{combo_name}: <strong>{data["rank"]}位/{data["total"]}中</strong> '
+        sorted_rankings = sorted(build_type_rankings.values(), key=lambda x: x["score"], reverse=True)
+        for data in sorted_rankings:
+            status_html += f'<li>{data["build_type_display"]} ({data["combo_name"]}): <strong>{data["rank"]}位/{data["total"]}中</strong> '
             status_html += f'<span class="score">(スコア: {data["score"]:.1f}点)</span><br>'
             status_html += f'<span class="diff">1位との差分: {data["diff"]:.1f}</span></li>'
         status_html += '</ul>'
@@ -499,21 +594,30 @@ def generate_evaluation_html(conn: sqlite3.Connection, equipment_name: str, rari
     ability_html = ""
     if ability and ability != "なし" and ability_category != "なし":
         from ability_evaluator import evaluate_ability
-        eval_result = evaluate_ability(ability, ability_category, equipment_type)
+        eval_result = evaluate_ability(
+            ability,
+            ability_category,
+            equipment_type,
+            equipment_name=equipment.get('装備名'),
+            rarity=equipment.get('レアリティ'),
+        )
         
         if eval_result["score"] > 0:
             ability_html += '<h2>アビリティ評価</h2>'
             ability_html += f'<div class="score-box">アビリティスコア: <strong>{eval_result["score"]:.1f}点</strong></div>'
             
             if len(eval_result.get("categories", [])) > 1:
-                ability_html += f'<p><strong>カテゴリ</strong>: {", ".join(eval_result["categories"])} (複数カテゴリの平均評価)</p>'
+                ability_html += f'<p><strong>カテゴリ</strong>: {", ".join(eval_result["categories"])}<br>'
+                ability_html += f'<strong>代表カテゴリ</strong>: {eval_result.get("representative_category", "")}（重要度最大値）</p>'
             
             ability_html += '<ul>'
-            ability_html += f'<li>カテゴリ希少性: {eval_result["rarity"]:.1f}点</li>'
             ability_html += f'<li>カテゴリ重要度: {eval_result["importance"]}点</li>'
+            condition_text = eval_result.get("condition_text", "")
+            if condition_text:
+                ability_html += f'<li>発動条件: {condition_text}</li>'
             ability_html += f'<li>発動条件倍率: {eval_result["condition_rate"]:.2f}倍</li>'
-            ability_html += f'<li>効果量ランク: {eval_result["effect_rank"]:.2f}</li>'
-            if eval_result['effect_value']:
+            ability_html += f'<li>効果量スコア: {eval_result.get("effect_score", 0):.2f}</li>'
+            if eval_result.get('effect_value') is not None:
                 ability_html += f'<li>抽出された効果量: {eval_result["effect_value"]:.1f}</li>'
             ability_html += '</ul>'
             
@@ -536,7 +640,13 @@ def generate_evaluation_html(conn: sqlite3.Connection, equipment_name: str, rari
         ability_text = equipment.get(ability_col)
         if ability_text and ability_text.strip() and ability_text != "なし":
             from ability_evaluator import evaluate_ability
-            ability_eval = evaluate_ability(conn, ability_text, equipment['装備種類'])
+            ability_eval = evaluate_ability(
+                ability_text,
+                equipment.get('アビリティカテゴリ', ''),
+                equipment['装備種類'],
+                equipment_name=equipment.get('装備名'),
+                rarity=equipment.get('レアリティ'),
+            )
             total_ability_score += ability_eval.get('score', 0)
     
     superior_data = find_superior_equipment(conn, equipment, total_ability_score)
@@ -940,14 +1050,13 @@ def generate_evaluation_html(conn: sqlite3.Connection, equipment_name: str, rari
             <p><em>この評価は自動生成されたものです</em></p>
             <h4>スコア算出方法</h4>
             <ul>
-                <li><strong>ステータススコア</strong>: 各ステータスの最高スコアを採用（1位=100点、最下位=50点で線形補間）</li>
-                <li style="padding-left: 20px;">同装備種類内評価と型内評価の高い方を総合スコアとする</li>
-                <li style="padding-left: 20px;">型内評価: 型に含まれる2種ステータス組み合わせでのランキング評価</li>
-                <li><strong>アビリティスコア</strong>: max(カテゴリ希少性, カテゴリ重要度) × 発動条件倍率 × 効果量ランク</li>
-                <li style="padding-left: 20px;">カテゴリ重要度: 最重要100点/重要60点/中程度40点/低20点（100点満点）</li>
-                <li style="padding-left: 20px;">カテゴリ希少性: 装備数が少ないほど高得点（0-100点）</li>
-                <li style="padding-left: 20px;">発動条件倍率: 無条件1.0倍、条件付き0.5〜0.9倍</li>
-                <li style="padding-left: 20px;">効果量ランク: 同カテゴリ内での効果量に基づき0.5〜1.0</li>
+                <li><strong>ステータススコア</strong>: 型該当時は型内2ステータス組み合わせを同種+同レア内でmin-max再計算し、最高スコアを採用</li>
+                <li style="padding-left: 20px;">型非該当時は6ステータスの平均スコアを採用</li>
+                <li><strong>アビリティスコア</strong>: (カテゴリ重要度 + 効果量スコア) × 発動条件倍率 × 0.5</li>
+                <li style="padding-left: 20px;">複数カテゴリのアビリティは、カテゴリ重要度が最大のカテゴリを代表カテゴリとして計算</li>
+                <li style="padding-left: 20px;">カテゴリ重要度/効果係数: mock_評価/ability_category_settings.csv でカテゴリごとに調整</li>
+                <li style="padding-left: 20px;">発動条件倍率: 条件文に応じて 0.5〜1.0（HP条件はしきい値別ルールを適用）</li>
+                <li style="padding-left: 20px;">効果量スコア: 同カテゴリ×装備種類内で効果量を正規化（0〜100点）</li>
             </ul>
         </div>
     </div>

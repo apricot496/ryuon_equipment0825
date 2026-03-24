@@ -5,6 +5,7 @@ GitHub Action用装備評価生成スクリプト
 """
 import sqlite3
 import sys
+import subprocess
 from pathlib import Path
 from generate_equipment_evaluation import generate_evaluation_html, save_evaluation_file, generate_preview_image
 
@@ -55,6 +56,19 @@ def main():
     print("=" * 60)
     print("GitHub Action用装備評価生成")
     print("=" * 60)
+
+    # スコアDBを先に生成
+    print("\n[1/2] equipments_mart_score.db を生成します...")
+    try:
+        subprocess.run(
+            [sys.executable, "generate_equipments_mart_score_db.py"],
+            check=True,
+        )
+    except subprocess.CalledProcessError as e:
+        print(f"✗ スコアDB生成エラー: {e}")
+        sys.exit(1)
+
+    print("\n[2/2] 装備評価ファイルを生成します...")
     
     conn = sqlite3.connect(DB_FILE)
     
