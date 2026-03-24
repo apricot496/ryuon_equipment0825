@@ -147,42 +147,19 @@ def _extract_probability_percent(text: str) -> Optional[float]:
 
 
 def extract_condition_text(ability_text: str) -> str:
-    """アビリティ文から発動条件テキストを抽出（条件なしは空文字）"""
+    """アビリティ文から発動条件テキストを抽出（運用ルール簡易版）"""
     text = (ability_text or "").replace('％', '%').replace('\n', '').replace('\r', '').strip()
     if not text:
         return ""
 
-    # 明示的な常時系は「常時」に正規化
-    if "常時発動" in text or text.startswith("常時"):
-        return "常時"
-    if "バトル開始" in text:
-        return "バトル開始時"
-    if "クエストクリア" in text:
-        return "クエストクリア時"
-    if "ドンパチ・タイマン" in text:
-        return "ドンパチ・タイマン時"
-
-    # 敵状態/敵属性など、敵側に依存する条件
-    if re.search(r'(敵に対して|の敵に対して|敵への|敵が|全状態異常.*敵|不利属性)', text):
+    # ルール:
+    # - アビリティなし(空文字)のみ空欄
+    # - 「敵の人数×」を含む場合は敵依存
+    # - それ以外は常時
+    if "敵の人数×" in text:
         return "敵依存"
 
-    # 文頭から「〜時 / 〜とき」までを条件として採用
-    match = re.search(r'^(.*?(?:のとき|の時|とき|時))', text)
-    if match:
-        return match.group(1).strip(' 、,。')
-
-    # 「〜以上 / 〜以下」表現が先頭側にある場合の補助抽出
-    match = re.search(r'^(.*?(?:以上|以下))', text)
-    if match:
-        candidate = match.group(1).strip(' 、,。')
-        if any(k in candidate for k in ["HP", "体力", "ヒートゲージ", "人数", "生存", "不在", "特性", "状態異常"]):
-            return candidate
-
-    # 条件キーワードがない文は常時扱い
-    if not any(x in text for x in ["時", "とき", "以上", "以下", "人数", "生存", "不在", "確率"]):
-        return "常時"
-
-    return ""
+    return "常時"
 
 
 # 発動条件の評価倍率
