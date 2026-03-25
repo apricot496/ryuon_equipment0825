@@ -1,6 +1,7 @@
 import streamlit as st
 import pandas as pd
 import sqlite3
+import re
 from pathlib import Path
 from datetime import datetime, timezone, timedelta
 
@@ -8,20 +9,60 @@ from datetime import datetime, timezone, timedelta
 st.set_page_config(page_title="Ryuon_Apricot_Equipmentdata")
 
 DB_FILE = "equipment.db"
+SCORE_DB_FILE = "equipments_mart_score.db"
+EVALUATION_SHEETS_IMAGE_DIR = Path("evaluation_sheets/images")
+
+
+def _extract_probability_percent(text: str) -> float | None:
+    if not isinstance(text, str):
+        return None
+    normalized = text.replace('％', '%')
+    bracket_match = re.search(r'(\d+)\[(\d+)\]%の確率', normalized)
+    if bracket_match:
+        return float(max(int(bracket_match.group(1)), int(bracket_match.group(2))))
+    match = re.search(r'(\d+(?:\.\d+)?)%の確率', normalized)
+    if match:
+        return float(match.group(1))
+    return None
+
+
+def _get_latest_mart_score_table(conn: sqlite3.Connection) -> str | None:
+    """score DB から最新の *_equipments_mart_score テーブル名を取得"""
+    query = """
+        SELECT name
+        FROM scoredb.sqlite_master
+        WHERE type = 'table'
+          AND name LIKE '%_equipments_mart_score'
+        ORDER BY name DESC
+        LIMIT 1
+    """
+    row = conn.execute(query).fetchone()
+    if not row:
+        return None
+    return row[0]
 
 @st.cache_data(ttl=3600)
-def load_data():
+def load_data(include_images: bool = False):
     """SQLite DB からデータを読み込む"""
     conn = sqlite3.connect(DB_FILE)
+    conn.execute(f"ATTACH DATABASE '{SCORE_DB_FILE}' AS scoredb")
+
+    score_table = _get_latest_mart_score_table(conn)
 
     equipments_list = ["武器", "防具", "装飾"]
     df_list = []
 
     for equipments in equipments_list:
-        df = pd.read_sql(f"""
+        image_select = "e.IMG_URL AS 画像" if include_images else "NULL AS 画像"
+        image_join = """
+LEFT JOIN equipment_img_base64 AS e
+ON m.装備名 = e.装備名 AND m.レアリティ = e.レアリティ
+""" if include_images else ""
+
+        base_query = f"""
 SELECT 
     m.装備名
-    , e.BASE64 AS 画像
+    , {image_select}
     , m.装備番号
     , m.レアリティ
     , m.体力
@@ -30,16 +71,71 @@ SELECT
     , m.会心率
     , m.命中率
     , m.回避率
+    , 0.0 AS ステータススコア
     , m.アビリティ
     , m.アビリティカテゴリ
+    , m.アビリティスコア
+    , m.発動条件
+    , NULL AS アビリティ_抽出効果値
+    , NULL AS アビリティ_発動条件
 FROM mart_equipments_master AS m
-LEFT JOIN equipment_img_base64 AS e
-ON m.装備名 = e.装備名 AND m.レアリティ = e.レアリティ
+{image_join}
 WHERE m.装備種類 = '{equipments}'
-""", conn)
+"""
+
+        if score_table:
+            score_image_join = """
+LEFT JOIN equipment_img_base64 AS e
+ON s.装備名 = e.装備名 AND s.レアリティ = e.レアリティ
+""" if include_images else ""
+            query = f"""
+SELECT
+    s.装備名
+    , {image_select.replace('m.', 's.')}
+    , s.装備番号
+    , s.レアリティ
+    , s.体力
+    , s.攻撃力
+    , s.防御力
+    , s.会心率
+    , s.命中率
+    , s.回避率
+    , s.ステータススコア
+    , s.アビリティ
+    , s.アビリティカテゴリ
+    , s.アビリティスコア
+    , s.発動条件
+    , s.アビリティ_抽出効果値
+    , s.アビリティ_発動条件
+FROM scoredb."{score_table}" AS s
+{score_image_join}
+WHERE s.装備種類 = '{equipments}'
+"""
+            df = pd.read_sql(query, conn)
+        else:
+            df = pd.read_sql(base_query, conn)
         
         df = df.sort_values('装備番号', ignore_index=True)
         df = df.replace('', pd.NA)
+        if 'ステータススコア' not in df.columns:
+            df['ステータススコア'] = 0.0
+        if 'アビリティスコア' not in df.columns:
+            df['アビリティスコア'] = 0.0
+        if '発動条件' not in df.columns:
+            df['発動条件'] = ''
+        if 'アビリティ_抽出効果値' not in df.columns:
+            df['アビリティ_抽出効果値'] = None
+        if 'アビリティ_発動条件' not in df.columns:
+            df['アビリティ_発動条件'] = None
+
+        # デフォルト: アビリティ_抽出効果値 -> 効果量
+        df.rename(columns={'アビリティ_抽出効果値': '効果量'}, inplace=True)
+
+        # 状態異常付与: アビリティ文中の発動確率(%)を効果量として採用
+        status_abnormal_mask = df['アビリティカテゴリ'] == '状態異常付与'
+        abnormal_probability = df.loc[status_abnormal_mask, 'アビリティ'].apply(_extract_probability_percent)
+        df.loc[status_abnormal_mask, '効果量'] = abnormal_probability
+
         df['check'] = False
         # チェック列を一番左に移動
         columns = ['check'] + [col for col in df.columns if col != 'check']
@@ -69,7 +165,6 @@ def rarity_select_list_ui():
     #     if st.button('選択解除',key= 'rarity_button'):
     #         st.session_state["rarity_state"] = rarity_list
 
-    st.write("### レアリティ")
     # レアリティ選択ピル
     rarity_select_list = st.pills(
         label= 'レアリティ',
@@ -95,7 +190,6 @@ def status_select_list_ui():
     # with cols[1]:
     #     if st.button('選択解除',key= 'status_button'):
     #         st.session_state["status_state"] = []
-    st.write("### ステータス")
     status_select_list = st.pills(
         label= 'ステータス',
         options=status_list,
@@ -108,13 +202,12 @@ def status_select_list_ui():
     return status_select_list
 
 def ability_select_list_ui(category_df):
-    st.write("### アビリティ")
     # アビリティ名のリストを作成
     ability_name_list = category_df['アビリティカテゴリ分類'].unique()
     # # Nanを削除
     # ability_name_list = ability_name_list[1:]
     #複数選択
-    ability_select_list = st.multiselect(label='アビリティを選択してください',options = ability_name_list,label_visibility= 'collapsed')
+    ability_select_list = st.multiselect(label='アビリティ',options = ability_name_list,label_visibility= 'collapsed')
     
     if len(ability_select_list) == 0:
         ability_select_list = ability_name_list
@@ -154,38 +247,90 @@ def ability_select_list_ui(category_df):
 
 
 def equipment_col_select_ui():
-    equipment_col_list = ['画像','レアリティ', '体力', '攻撃力', '防御力', '会心率', '命中率', '回避率', 'アビリティ']
-    st.write("### 表示項目")
+    equipment_col_list = ['レアリティ', '体力', '攻撃力', '防御力', '会心率', '命中率', '回避率', 'アビリティ', 'ステータススコア', 'アビリティスコア', '発動条件', '効果量']
+    default_cols = ['レアリティ', '体力', '攻撃力', '防御力', '会心率', '命中率', '回避率', 'アビリティ', 'ステータススコア', 'アビリティスコア', '発動条件', '効果量']
     # `st.multiselect` の選択項目をセッション状態で管理
     equipment_col_select_list = st.multiselect(
         label='表示項目',
         options=equipment_col_list,
-        default=equipment_col_list,
+        default=default_cols,
         label_visibility='collapsed'
     )
     return equipment_col_select_list
 
 
-def index_filtered_df(df,rarity_select_list,status_select_list,ability_select_list):
+def score_filter_ui():
+    status_score_min = st.slider(
+        label='ステータススコア（以上）',
+        min_value=0.0,
+        max_value=100.0,
+        value=0.0,
+        step=0.5,
+    )
+    ability_score_min = st.slider(
+        label='アビリティスコア（以上）',
+        min_value=0.0,
+        max_value=100.0,
+        value=0.0,
+        step=0.5,
+    )
+    condition_options = ['常時', '敵依存', '(空欄)']
+    condition_select_list = st.multiselect(
+        label='発動条件',
+        options=condition_options,
+        default=condition_options,
+    )
+    return status_score_min, ability_score_min, condition_select_list
+
+
+def index_filtered_df(df,rarity_select_list,status_select_list,ability_select_list,status_score_min,ability_score_min,condition_select_list):
     df_col = df.copy()
     df = df[df['レアリティ'].isin(rarity_select_list)]
     for status in status_select_list:
         df = df[df[status].notnull() == True]
     df = df[df['アビリティカテゴリ'].apply(lambda x: any(ab in x for ab in ability_select_list) if pd.notnull(x) else False)]
+
+    # ステータススコア（以上）
+    df = df[df['ステータススコア'].fillna(0) >= status_score_min]
+
+    # アビリティスコア（以上）
+    df = df[df['アビリティスコア'].fillna(0) >= ability_score_min]
+
+    # 発動条件
+    if condition_select_list:
+        condition_series = df['発動条件'].fillna('')
+        cond_mask = pd.Series(False, index=df.index)
+        if '常時' in condition_select_list:
+            cond_mask = cond_mask | (condition_series == '常時')
+        if '敵依存' in condition_select_list:
+            cond_mask = cond_mask | (condition_series == '敵依存')
+        if '(空欄)' in condition_select_list:
+            cond_mask = cond_mask | (condition_series == '')
+        df = df[cond_mask]
+
     if df.shape[1]==0:
         df = pd.DataFrame(columns=df_col.columns)
     return df
 
-def equipment_checked_df_list(equipment, filtered_equipment_df, equipment_col_select_list):
+def equipment_checked_df_list(equipment, filtered_equipment_df, equipment_col_select_list, show_image):
     session_key = f"{equipment}_checked_rows"
     if session_key not in st.session_state:
         st.session_state[session_key] = []
     # 画像の読み込み
-    col_cfg = {"画像": st.column_config.ImageColumn("画像")}
+    col_cfg = {
+        "画像": st.column_config.ImageColumn("画像"),
+    }
     
-    equipment_df = pd.concat([filtered_equipment_df[['check', '装備名']], filtered_equipment_df[equipment_col_select_list]],axis=1)
+    selected_cols = [col for col in equipment_col_select_list if col not in ['check', '装備名', '画像']]
+    base_cols = ['check', '装備名']
+    if show_image:
+        base_cols.append('画像')
+    display_cols = base_cols + selected_cols
+
+    equipment_df = filtered_equipment_df[display_cols].copy()
     equipment_df["check"] = equipment_df.index.isin(st.session_state[session_key])
-    equipment_df = st.data_editor(equipment_df,disabled=(col for col in equipment_col_select_list + ["装備名"]),key=f"{equipment}_df", column_config=col_cfg)
+    disabled_cols = [col for col in equipment_df.columns if col != 'check']
+    equipment_df = st.data_editor(equipment_df,disabled=disabled_cols,key=f"{equipment}_df", column_config=col_cfg)
     st.session_state[session_key] = filtered_equipment_df[equipment_df["check"]]['装備番号'].tolist()
     select_index_num_list = filtered_equipment_df[equipment_df["check"]]['装備番号'].tolist()
     # st.write(select_index_num_list)
@@ -233,6 +378,56 @@ def equipments_status_sum(final_selected_weapon,final_selected_armor,final_selec
         for final_selected_equipment in final_selected_equipment_list:
             st.write(f'{final_selected_equipment[6][1]}')
 
+
+def _guess_mime_type(file_path: Path) -> str:
+    suffix = file_path.suffix.lower()
+    if suffix == '.png':
+        return 'image/png'
+    if suffix in ['.jpg', '.jpeg']:
+        return 'image/jpeg'
+    if suffix == '.webp':
+        return 'image/webp'
+    if suffix == '.html':
+        return 'text/html'
+    return 'application/octet-stream'
+
+
+def evaluation_sheet_download_ui():
+    if not EVALUATION_SHEETS_IMAGE_DIR.exists():
+        st.caption('evaluation_sheets/images が存在しません')
+        return
+
+    target_files = sorted(
+        [p for p in EVALUATION_SHEETS_IMAGE_DIR.iterdir() if p.is_file()],
+        key=lambda p: p.name,
+        reverse=True,
+    )
+
+    if not target_files:
+        st.caption('ダウンロード対象の評価シートがありません')
+        return
+
+    st.caption('ファイル名の降順で表示')
+    options = [p.name for p in target_files]
+    selected_files = st.multiselect(
+        label='評価シートを選択',
+        options=options,
+        default=[],
+        placeholder='ダウンロードしたい評価シートを選択',
+    )
+
+    for filename in selected_files:
+        file_path = EVALUATION_SHEETS_IMAGE_DIR / filename
+        if not file_path.exists():
+            continue
+        st.download_button(
+            label=f'DL: {filename}',
+            data=file_path.read_bytes(),
+            file_name=filename,
+            mime=_guess_mime_type(file_path),
+            key=f'dl_eval_sheet_{filename}',
+        )
+
 def reload_time():
     """load_log.csv から最新更新日時を取得（文字列: YYYY-MM-DD HH:MM:SS）"""
     path = Path("load_log.csv")
@@ -254,24 +449,26 @@ def reload_time():
 def main():
     st.write('# 龍オン装備検索アプリケーション')
     st.write('データ最終更新日時：', reload_time())
-    weapon_df, armor_df, accesory_df, category_df = load_data()
+    show_image = st.toggle('画像表示', value=False)
+    weapon_df, armor_df, accesory_df, category_df = load_data(include_images=show_image)
     
     with st.sidebar.expander("### 検索フィルタ", expanded=True):
         rarity_select_list = rarity_select_list_ui()
         status_select_list = status_select_list_ui()
         ability_select_list = ability_select_list_ui(category_df)
+        status_score_min, ability_score_min, condition_select_list = score_filter_ui()
     equipment_col_select_list = equipment_col_select_ui()
 
     weapon, armor, accesory = st.tabs(["武器", "防具", "装飾"])
     with weapon:
-        filtered_weapon_df = index_filtered_df(weapon_df,rarity_select_list,status_select_list,ability_select_list)
-        weapon_select_index_num_list = equipment_checked_df_list('weapon',filtered_weapon_df,equipment_col_select_list )
+        filtered_weapon_df = index_filtered_df(weapon_df,rarity_select_list,status_select_list,ability_select_list,status_score_min,ability_score_min,condition_select_list)
+        weapon_select_index_num_list = equipment_checked_df_list('weapon',filtered_weapon_df,equipment_col_select_list,show_image)
     with armor:
-        filtered_armor_df = index_filtered_df(armor_df,rarity_select_list,status_select_list,ability_select_list)
-        armor_select_index_num_list = equipment_checked_df_list('armor',filtered_armor_df,equipment_col_select_list )
+        filtered_armor_df = index_filtered_df(armor_df,rarity_select_list,status_select_list,ability_select_list,status_score_min,ability_score_min,condition_select_list)
+        armor_select_index_num_list = equipment_checked_df_list('armor',filtered_armor_df,equipment_col_select_list,show_image)
     with accesory:
-        filtered_accesory_df = index_filtered_df(accesory_df,rarity_select_list,status_select_list,ability_select_list)
-        accesory_select_index_num_list = equipment_checked_df_list('accesory',filtered_accesory_df,equipment_col_select_list )
+        filtered_accesory_df = index_filtered_df(accesory_df,rarity_select_list,status_select_list,ability_select_list,status_score_min,ability_score_min,condition_select_list)
+        accesory_select_index_num_list = equipment_checked_df_list('accesory',filtered_accesory_df,equipment_col_select_list,show_image)
         
     with st.sidebar.expander("### ステータス合算", expanded=True):
         st.write('右のリストからセットしたい装備をcheckしてください')
@@ -279,6 +476,9 @@ def main():
         final_selected_armor = equipment_checked_df_ui('armor',filtered_armor_df,armor_select_index_num_list)
         final_selected_accesory = equipment_checked_df_ui('accesory',filtered_accesory_df,accesory_select_index_num_list)
         equipments_status_sum(final_selected_weapon,final_selected_armor,final_selected_accesory)
+
+    with st.sidebar.expander("### 評価シートDL", expanded=True):
+        evaluation_sheet_download_ui()
 
 # エントリーポイント
 if __name__ == "__main__":
