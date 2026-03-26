@@ -4,12 +4,11 @@ import argparse
 from pathlib import Path
 import os
 import re
+import sqlite3
 
 import numpy as np
 import pandas as pd
 from PIL import Image
-from sqlalchemy import create_engine
-from sqlalchemy.engine import Engine
 
 # Google Sheets
 import gspread
@@ -17,7 +16,7 @@ from google.oauth2.service_account import Credentials
 from dotenv import load_dotenv
 
 
-DB_URL = "sqlite:///./equipment.db"
+DB_PATH = "equipment.db"
 
 # 元の差分抽出で必要なカラム（non_check_df のベース）
 BASE_COLUMNS = [
@@ -91,23 +90,22 @@ def enforce_nullable_int_stats(df: pd.DataFrame) -> pd.DataFrame:
 # =========================
 # SQLite helpers
 # =========================
-def _table_exists(engine: Engine, table_name: str) -> bool:
+def _table_exists(conn: sqlite3.Connection, table_name: str) -> bool:
     sql = "SELECT 1 FROM sqlite_master WHERE type='table' AND name=? LIMIT 1"
-    with engine.connect() as conn:
-        row = conn.exec_driver_sql(sql, (table_name,)).fetchone()
+    row = conn.execute(sql, (table_name,)).fetchone()
     return row is not None
 
 
-def _read_sql_table(engine: Engine, table_name: str) -> pd.DataFrame:
-    return pd.read_sql_query(f'SELECT * FROM "{table_name}"', con=engine)
+def _read_sql_table(conn: sqlite3.Connection, table_name: str) -> pd.DataFrame:
+    return pd.read_sql_query(f'SELECT * FROM "{table_name}"', con=conn)
 
 
-def resolve_non_check_sheet_and_table(engine: Engine) -> tuple[str, str]:
+def resolve_non_check_sheet_and_table(conn: sqlite3.Connection) -> tuple[str, str]:
     default = ("non_check_equipments", "non_check_equipments")
-    if not _table_exists(engine, "staying_check_equipment_list"):
+    if not _table_exists(conn, "staying_check_equipment_list"):
         return default
 
-    df = _read_sql_table(engine, "staying_check_equipment_list")
+    df = _read_sql_table(conn, "staying_check_equipment_list")
 
     sheet_cols = [c for c in ["sheet_name", "sheet", "シート名"] if c in df.columns]
     table_cols = [c for c in ["table_name", "table", "テーブル名"] if c in df.columns]
@@ -128,24 +126,24 @@ def resolve_non_check_sheet_and_table(engine: Engine) -> tuple[str, str]:
     return default
 
 
-def upsert_non_check_to_sqlite(engine: Engine, df: pd.DataFrame, table_name: str) -> None:
+def upsert_non_check_to_sqlite(conn: sqlite3.Connection, df: pd.DataFrame, table_name: str) -> None:
     """
     SQLite に書き込む（簡易upsert）
     キー: (装備名, レアリティ)
     """
-    if not _table_exists(engine, table_name):
-        df.head(0).to_sql(table_name, con=engine, if_exists="replace", index=False)
+    if not _table_exists(conn, table_name):
+        df.head(0).to_sql(table_name, con=conn, if_exists="replace", index=False)
 
     keys = df[["装備名", "レアリティ"]].dropna().drop_duplicates()
 
-    with engine.begin() as conn:
-        for name, rarity in keys.itertuples(index=False):
-            conn.exec_driver_sql(
-                f'DELETE FROM "{table_name}" WHERE "装備名" = ? AND "レアリティ" = ?',
-                (name, rarity),
-            )
+    for name, rarity in keys.itertuples(index=False):
+        conn.execute(
+            f'DELETE FROM "{table_name}" WHERE "装備名" = ? AND "レアリティ" = ?',
+            (name, rarity),
+        )
+    conn.commit()
 
-    df.to_sql(table_name, con=engine, if_exists="append", index=False)
+    df.to_sql(table_name, con=conn, if_exists="append", index=False)
 
 
 # =========================
@@ -159,7 +157,7 @@ FIX_TABLES = [
     "ur武器", "ur防具", "ur装飾",
 ]
 
-def load_fix_equipments_df(engine: Engine) -> pd.DataFrame:
+def load_fix_equipments_df(conn: sqlite3.Connection) -> pd.DataFrame:
     """
     9シート（ur武器、ksr武器、ssr武器、ur防具、ksr防具、ssr防具、ur装飾、ksr装飾、ssr装飾）から
     全ての確定済み装備を読み込む
@@ -168,8 +166,8 @@ def load_fix_equipments_df(engine: Engine) -> pd.DataFrame:
     """
     dfs = []
     for table_name in FIX_TABLES:
-        if _table_exists(engine, table_name):
-            df = _read_sql_table(engine, table_name)
+        if _table_exists(conn, table_name):
+            df = _read_sql_table(conn, table_name)
             dfs.append(df)
     
     if not dfs:
@@ -179,11 +177,11 @@ def load_fix_equipments_df(engine: Engine) -> pd.DataFrame:
     return fix_df.drop_duplicates(subset=["装備名", "レアリティ"], keep="first").reset_index(drop=True)
 
 
-def build_non_check_candidates_df(engine: Engine) -> pd.DataFrame:
-    fix_df = load_fix_equipments_df(engine)
+def build_non_check_candidates_df(conn: sqlite3.Connection) -> pd.DataFrame:
+    fix_df = load_fix_equipments_df(conn)
     fix_keys = fix_df[["装備名", "レアリティ"]].drop_duplicates()
 
-    scraped_df = _read_sql_table(engine, "equipment_img_scraping")
+    scraped_df = _read_sql_table(conn, "equipment_img_scraping")
 
     merged = scraped_df.merge(
         fix_keys,
@@ -216,7 +214,7 @@ def _mse(a: np.ndarray, b: np.ndarray) -> float:
     return float(np.mean(d * d))
 
 
-def find_reference_images(engine: Engine, static_dir: Path) -> dict[str, Path]:
+def find_reference_images(conn: sqlite3.Connection, static_dir: Path) -> dict[str, Path]:
     """
     9シートから装備種類ごとの参照画像を探す
     """
@@ -233,10 +231,10 @@ def find_reference_images(engine: Engine, static_dir: Path) -> dict[str, Path]:
         found: Path | None = None
         
         for table_name in table_names:
-            if not _table_exists(engine, table_name):
+            if not _table_exists(conn, table_name):
                 continue
             
-            df = _read_sql_table(engine, table_name)
+            df = _read_sql_table(conn, table_name)
             
             for _, row in df[["装備名", "レアリティ"]].dropna().iterrows():
                 p = static_dir / f'{row["装備名"]}_{row["レアリティ"]}.png'
@@ -523,16 +521,16 @@ def main() -> None:
         raise SystemExit("no-write-db と no-write-sheet の両方が指定されているため何もしません。")
 
     static_dir = Path(args.static_dir)
-    engine = create_engine(DB_URL)
+    conn = sqlite3.connect(DB_PATH)
 
     # 1) non_check候補
-    non_check_df = build_non_check_candidates_df(engine)
+    non_check_df = build_non_check_candidates_df(conn)
 
     # 2) 装備種類付与
     if args.ref_weapon and args.ref_armor and args.ref_accessory:
         ref_paths = {"武器": Path(args.ref_weapon), "防具": Path(args.ref_armor), "装飾": Path(args.ref_accessory)}
     else:
-        ref_paths = find_reference_images(engine, static_dir)
+        ref_paths = find_reference_images(conn, static_dir)
 
     refs = build_reference_icons(ref_paths)
     non_check_df = add_equip_type_column(non_check_df, static_dir=static_dir, refs=refs)
@@ -553,13 +551,13 @@ def main() -> None:
     sheet_name = args.sheet_name
     table_name = args.table_name
     if sheet_name is None or table_name is None:
-        default_sheet, default_table = resolve_non_check_sheet_and_table(engine)
+        default_sheet, default_table = resolve_non_check_sheet_and_table(conn)
         sheet_name = sheet_name or default_sheet
         table_name = table_name or default_table
 
     # 8) DBへ書き込み
     if write_db:
-        upsert_non_check_to_sqlite(engine, non_check_df, table_name=table_name)
+        upsert_non_check_to_sqlite(conn, non_check_df, table_name=table_name)
         print(f"[DB] wrote table='{table_name}' rows={len(non_check_df)} (upsert by 装備名+レアリティ)")
 
     # 9) Sheetへ書き込み
@@ -571,6 +569,7 @@ def main() -> None:
     print("Reference images:", {k: str(v) for k, v in ref_paths.items()})
     print("装備種類 counts:\n", non_check_df["装備種類"].value_counts(dropna=False))
     print("アビリティカテゴリ null:", int(non_check_df["アビリティカテゴリ"].isna().sum()))
+    conn.close()
 
 
 if __name__ == "__main__":
