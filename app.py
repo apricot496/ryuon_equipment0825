@@ -42,7 +42,7 @@ def _get_latest_mart_score_table(conn: sqlite3.Connection) -> str | None:
     return row[0]
 
 @st.cache_data(ttl=3600)
-def load_data(include_images: bool = False):
+def load_data():
     """SQLite DB からデータを読み込む"""
     conn = sqlite3.connect(DB_FILE)
     conn.execute(f"ATTACH DATABASE '{SCORE_DB_FILE}' AS scoredb")
@@ -53,11 +53,11 @@ def load_data(include_images: bool = False):
     df_list = []
 
     for equipments in equipments_list:
-        image_select = "e.IMG_URL AS 画像" if include_images else "NULL AS 画像"
+        image_select = "e.IMG_URL AS 画像"
         image_join = """
 LEFT JOIN equipment_img_base64 AS e
 ON m.装備名 = e.装備名 AND m.レアリティ = e.レアリティ
-""" if include_images else ""
+    """
 
         base_query = f"""
 SELECT 
@@ -87,7 +87,7 @@ WHERE m.装備種類 = '{equipments}'
             score_image_join = """
 LEFT JOIN equipment_img_base64 AS e
 ON s.装備名 = e.装備名 AND s.レアリティ = e.レアリティ
-""" if include_images else ""
+"""
             query = f"""
 SELECT
     s.装備名
@@ -312,7 +312,7 @@ def index_filtered_df(df,rarity_select_list,status_select_list,ability_select_li
         df = pd.DataFrame(columns=df_col.columns)
     return df
 
-def equipment_checked_df_list(equipment, filtered_equipment_df, equipment_col_select_list, show_image):
+def equipment_checked_df_list(equipment, filtered_equipment_df, equipment_col_select_list):
     session_key = f"{equipment}_checked_rows"
     if session_key not in st.session_state:
         st.session_state[session_key] = []
@@ -322,9 +322,7 @@ def equipment_checked_df_list(equipment, filtered_equipment_df, equipment_col_se
     }
     
     selected_cols = [col for col in equipment_col_select_list if col not in ['check', '装備名', '画像']]
-    base_cols = ['check', '装備名']
-    if show_image:
-        base_cols.append('画像')
+    base_cols = ['check', '装備名', '画像']
     display_cols = base_cols + selected_cols
 
     equipment_df = filtered_equipment_df[display_cols].copy()
@@ -449,8 +447,7 @@ def reload_time():
 def main():
     st.write('# 龍オン装備検索アプリケーション')
     st.write('データ最終更新日時：', reload_time())
-    show_image = st.toggle('画像表示', value=False)
-    weapon_df, armor_df, accesory_df, category_df = load_data(include_images=show_image)
+    weapon_df, armor_df, accesory_df, category_df = load_data()
     
     with st.sidebar.expander("### 検索フィルタ", expanded=True):
         rarity_select_list = rarity_select_list_ui()
@@ -462,13 +459,13 @@ def main():
     weapon, armor, accesory = st.tabs(["武器", "防具", "装飾"])
     with weapon:
         filtered_weapon_df = index_filtered_df(weapon_df,rarity_select_list,status_select_list,ability_select_list,status_score_min,ability_score_min,condition_select_list)
-        weapon_select_index_num_list = equipment_checked_df_list('weapon',filtered_weapon_df,equipment_col_select_list,show_image)
+        weapon_select_index_num_list = equipment_checked_df_list('weapon',filtered_weapon_df,equipment_col_select_list)
     with armor:
         filtered_armor_df = index_filtered_df(armor_df,rarity_select_list,status_select_list,ability_select_list,status_score_min,ability_score_min,condition_select_list)
-        armor_select_index_num_list = equipment_checked_df_list('armor',filtered_armor_df,equipment_col_select_list,show_image)
+        armor_select_index_num_list = equipment_checked_df_list('armor',filtered_armor_df,equipment_col_select_list)
     with accesory:
         filtered_accesory_df = index_filtered_df(accesory_df,rarity_select_list,status_select_list,ability_select_list,status_score_min,ability_score_min,condition_select_list)
-        accesory_select_index_num_list = equipment_checked_df_list('accesory',filtered_accesory_df,equipment_col_select_list,show_image)
+        accesory_select_index_num_list = equipment_checked_df_list('accesory',filtered_accesory_df,equipment_col_select_list)
         
     with st.sidebar.expander("### ステータス合算", expanded=True):
         st.write('右のリストからセットしたい装備をcheckしてください')
