@@ -1,2 +1,2 @@
 Streamlit==1.40.0
-Pandas==3.0.1
+Pandas>=2.2,<3
