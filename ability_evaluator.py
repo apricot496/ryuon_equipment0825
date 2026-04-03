@@ -139,6 +139,11 @@ def evaluate_condition(ability_text: str) -> float:
         if not any(x in text for x in ["時", "とき", "以上", "以下", "人数", "生存", "不在", "特性", "通常攻撃", "攻撃時", "被ダメージ"]):
             return 1.0
 
+    # 「自身の与〜」は常時効果（能力値上昇）
+    # 例: 自身の与状態異常成功確率を14%上昇
+    if re.search(r'自身の与', text):
+        return 1.0
+
     # 状態異常時（最優先）
     # 自身/自分が状態異常時: 0.5
     if re.search(r'(自身|自分).*(状態異常時|状態異常)', text):
