@@ -55,7 +55,7 @@ def load_data():
     for equipments in equipments_list:
         image_select = "e.IMG_URL AS 画像"
         image_join = """
-LEFT JOIN equipment_img_base64 AS e
+LEFT JOIN equipment_img_scraping AS e
 ON m.装備名 = e.装備名 AND m.レアリティ = e.レアリティ
     """
 
@@ -85,7 +85,7 @@ WHERE m.装備種類 = '{equipments}'
 
         if score_table:
             score_image_join = """
-LEFT JOIN equipment_img_base64 AS e
+LEFT JOIN equipment_img_scraping AS e
 ON s.装備名 = e.装備名 AND s.レアリティ = e.レアリティ
 """
             query = f"""

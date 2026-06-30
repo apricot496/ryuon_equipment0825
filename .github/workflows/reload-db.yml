@@ -61,9 +61,6 @@ jobs:
       - name: Remove duplicate equipment images
         run: python index_drop_db.py
 
-      - name: Generate BASE64 images
-        run: python generate_base64_images.py
-
       - name: Export unchecked equipment to gsheet
         env:
           SPREADSHEET_KEY_NAME: ${{ secrets.SPREADSHEET_KEY_NAME }}
