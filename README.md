@@ -71,9 +71,11 @@ flowchart LR
     direction TB
     ImgScraping["equipment_img_scraping"]
     NonCheckDB["non_check_equipments"]
+    Tables9["確認済み9テーブル\nssr武器 / ssr防具\n・・・\nur装飾"]
     Mart["mart_equipments_master"]
     ImgScraping --> Mart
     NonCheckDB --> Mart
+    Tables9 --> Mart
   end
 
   App["Streamlit\napps"]
@@ -81,7 +83,7 @@ flowchart LR
   Web -->|"scraping_equipment.py"| ImgScraping
   ImgScraping -.->|"新規行のみ追記\nexport_unchecked_equipment_to_gsheet.py"| SSNonCheck
   SSNonCheck -->|"reload_ss_to_db.py"| NonCheckDB
-  SS9 -->|"reload_ss_to_db.py"| DB
+  SS9 -->|"reload_ss_to_db.py"| Tables9
   Mart --> App
 
   style SS fill:#e8f5e9,stroke:#388e3c
