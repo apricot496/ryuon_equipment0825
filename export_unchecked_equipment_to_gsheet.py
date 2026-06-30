@@ -457,7 +457,7 @@ def load_credentials_and_key() -> tuple[dict, str]:
     return creds_info, spreadsheet_key
 
 
-def write_df_to_sheet(df: pd.DataFrame, spreadsheet_key: str, creds_info: dict, sheet_name: str) -> None:
+def write_df_to_sheet(df: pd.DataFrame, spreadsheet_key: str, creds_info: dict, sheet_name: str, append_only: bool = False) -> None:
     scopes = [
         "https://www.googleapis.com/auth/spreadsheets",
         "https://www.googleapis.com/auth/drive",
@@ -484,13 +484,29 @@ def write_df_to_sheet(df: pd.DataFrame, spreadsheet_key: str, creds_info: dict, 
             return v.to_pydatetime().isoformat()
         return v
 
-    values = [df.columns.tolist()]
-    for row in df.itertuples(index=False, name=None):
-        values.append([to_jsonable(v) for v in row])
+    if append_only:
+        existing = ws.get_all_records()
+        if existing:
+            existing_keys = {(r["装備名"], r["レアリティ"]) for r in existing}
+            new_df = df[~df.apply(lambda r: (r["装備名"], r["レアリティ"]) in existing_keys, axis=1)]
+        else:
+            new_df = df
 
-    ws.clear()
-    # ★古いgspread対応：位置引数で渡す
-    ws.update("A1", values, value_input_option="USER_ENTERED")
+        if new_df.empty:
+            print(f"[Sheet] 新規行なし、追記スキップ")
+            return
+
+        rows = [[to_jsonable(v) for v in row] for row in new_df.itertuples(index=False, name=None)]
+        if not existing:
+            rows = [new_df.columns.tolist()] + rows
+        ws.append_rows(rows, value_input_option="USER_ENTERED")
+        print(f"[Sheet] {len(new_df)}件を追記しました")
+    else:
+        values = [df.columns.tolist()]
+        for row in df.itertuples(index=False, name=None):
+            values.append([to_jsonable(v) for v in row])
+        ws.clear()
+        ws.update("A1", values, value_input_option="USER_ENTERED")
 
 
 # =========================
@@ -560,11 +576,11 @@ def main() -> None:
         upsert_non_check_to_sqlite(conn, non_check_df, table_name=table_name)
         print(f"[DB] wrote table='{table_name}' rows={len(non_check_df)} (upsert by 装備名+レアリティ)")
 
-    # 9) Sheetへ書き込み
+    # 9) Sheetへ書き込み（新規行のみ追記）
     if write_sheet:
         creds_info, spreadsheet_key = load_credentials_and_key()
-        write_df_to_sheet(non_check_df, spreadsheet_key=spreadsheet_key, creds_info=creds_info, sheet_name=sheet_name)
-        print(f"[Sheet] wrote spreadsheet='{spreadsheet_key}' sheet='{sheet_name}' rows={len(non_check_df)}")
+        write_df_to_sheet(non_check_df, spreadsheet_key=spreadsheet_key, creds_info=creds_info, sheet_name=sheet_name, append_only=True)
+        print(f"[Sheet] append to spreadsheet='{spreadsheet_key}' sheet='{sheet_name}'")
 
     print("Reference images:", {k: str(v) for k, v in ref_paths.items()})
     print("装備種類 counts:\n", non_check_df["装備種類"].value_counts(dropna=False))

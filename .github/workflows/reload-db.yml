@@ -35,23 +35,6 @@ jobs:
       - name: Install dependencies
         run: pip install -r requirements-gha.txt
 
-      - name: Reload Sheets to DB
-        env:
-          SPREADSHEET_KEY_NAME: ${{ secrets.SPREADSHEET_KEY_NAME }}
-          GCP_TYPE: ${{ secrets.GCP_TYPE }}
-          GCP_PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
-          GCP_PRIVATE_KEY_ID: ${{ secrets.GCP_PRIVATE_KEY_ID }}
-          GCP_PRIVATE_KEY: ${{ secrets.GCP_PRIVATE_KEY }}
-          GCP_CLIENT_EMAIL: ${{ secrets.GCP_CLIENT_EMAIL }}
-          GCP_CLIENT_ID: ${{ secrets.GCP_CLIENT_ID }}
-          GCP_AUTH_URI: ${{ secrets.GCP_AUTH_URI }}
-          GCP_TOKEN_URI: ${{ secrets.GCP_TOKEN_URI }}
-          GCP_AUTH_PROVIDER_CERT_URL: ${{ secrets.GCP_AUTH_PROVIDER_CERT_URL }}
-          GCP_CLIENT_CERT_URL: ${{ secrets.GCP_CLIENT_CERT_URL }}
-          GCP_UNIVERSE_DOMAIN: ${{ secrets.GCP_UNIVERSE_DOMAIN }}
-          GITHUB_COMMIT_MESSAGE: "Auto update from GitHub Actions"
-        run: python reload_ss_to_db.py
-
       - name: Scrape Equipment Data
         env:
           NOW_BRANCH: ${{ github.ref_name }}
@@ -75,7 +58,24 @@ jobs:
           GCP_AUTH_PROVIDER_CERT_URL: ${{ secrets.GCP_AUTH_PROVIDER_CERT_URL }}
           GCP_CLIENT_CERT_URL: ${{ secrets.GCP_CLIENT_CERT_URL }}
           GCP_UNIVERSE_DOMAIN: ${{ secrets.GCP_UNIVERSE_DOMAIN }}
-        run: python export_unchecked_equipment_to_gsheet.py
+        run: python export_unchecked_equipment_to_gsheet.py --no-write-db
+
+      - name: Reload Sheets to DB
+        env:
+          SPREADSHEET_KEY_NAME: ${{ secrets.SPREADSHEET_KEY_NAME }}
+          GCP_TYPE: ${{ secrets.GCP_TYPE }}
+          GCP_PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
+          GCP_PRIVATE_KEY_ID: ${{ secrets.GCP_PRIVATE_KEY_ID }}
+          GCP_PRIVATE_KEY: ${{ secrets.GCP_PRIVATE_KEY }}
+          GCP_CLIENT_EMAIL: ${{ secrets.GCP_CLIENT_EMAIL }}
+          GCP_CLIENT_ID: ${{ secrets.GCP_CLIENT_ID }}
+          GCP_AUTH_URI: ${{ secrets.GCP_AUTH_URI }}
+          GCP_TOKEN_URI: ${{ secrets.GCP_TOKEN_URI }}
+          GCP_AUTH_PROVIDER_CERT_URL: ${{ secrets.GCP_AUTH_PROVIDER_CERT_URL }}
+          GCP_CLIENT_CERT_URL: ${{ secrets.GCP_CLIENT_CERT_URL }}
+          GCP_UNIVERSE_DOMAIN: ${{ secrets.GCP_UNIVERSE_DOMAIN }}
+          GITHUB_COMMIT_MESSAGE: "Auto update from GitHub Actions"
+        run: python reload_ss_to_db.py
 
       - name: Create mart_equipments_master table
         run: python create_mart_equipments_master.py

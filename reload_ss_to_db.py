@@ -15,7 +15,8 @@ SHEET_NAMES = [
     "ur武器", "ur防具", "ur装飾",
     "ksr武器", "ksr防具", "ksr装飾",
     "ssr武器", "ssr防具", "ssr装飾",
-    "ability_category"
+    "ability_category",
+    "non_check_equipments",
 ]
 JST = timezone(timedelta(hours=9))
 
