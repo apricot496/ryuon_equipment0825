@@ -39,19 +39,18 @@
      - 公式サイトから最新20件の装備情報を取得
      - equipment_img_scrapingテーブルに保存
   3. 重複装備画像の削除（`index_drop_db.py`）
-  4. 画像の BASE64 化（`generate_base64_images.py`）
-  5. 未チェック装備のエクスポート（`export_unchecked_equipment_to_gsheet.py`）
+  4. 未チェック装備のエクスポート（`export_unchecked_equipment_to_gsheet.py`）
      - equipment_img_scrapingと9シートの差分を抽出
      - 画像から装備種類（武器/防具/装飾）を自動判定
      - アビリティからカテゴリを推測
      - non_check_equipmentsテーブルとスプレッドシートに書き込み
-  6. マスターテーブル作成（`create_mart_equipments_master.py`）
+  5. マスターテーブル作成（`create_mart_equipments_master.py`）
      - 9シート + non_check_equipments → mart_equipments_master作成
-  7. ログ更新（`update_load_csv.py`）
-  8. データベース最適化（`vacuum_db.py`）
-  9. 装備評価生成（`generate-evaluations.yml`ワークフローで自動実行）
+  6. ログ更新（`update_load_csv.py`）
+  7. データベース最適化（`vacuum_db.py`）
+  8. 装備評価生成（`generate-evaluations.yml`ワークフローで自動実行）
      - 最新10件の装備の評価HTML・PNGを生成
-  10. `equipment.db`、`load_log.csv`、`static/`、`evaluation_sheets/` をコミットして push
+  9. `equipment.db`、`load_log.csv`、`static/`、`evaluation_sheets/` をコミットして push
 
 
 ## 仕組み（データフロー）
@@ -60,17 +59,15 @@ flowchart TB
   Sheets[Google Spreadsheet<br/>確定済み装備データ] -->|reload_ss_to_db.py| DB[(equipment.db)]
   Web[公式サイト等<br/>スクレイピング] -->|scraping_equipment.py| ImgScraping[equipment_img_scraping]
   ImgScraping -->|index_drop_db.py<br/>重複削除| ImgScraping
-  ImgScraping -->|generate_base64_images.py| ImgBase64[equipment_img_base64]
   DB -->|create_mart_equipments_master.py| Mart[mart_equipments_master]
   Mart -->|差分抽出| Unchecked[未チェック装備]
   Unchecked -->|export_unchecked_equipment_to_gsheet.py| Sheets
   Mart --> App["app.py<br/>(Streamlit)"]
-  ImgBase64 --> App
+  ImgScraping --> App
   App --> Deploy[Streamlit Cloud<br/>公開アプリ]
   
   style DB fill:#e1f5ff
   style Mart fill:#fff9c4
-  style ImgBase64 fill:#fff9c4
   style App fill:#c8e6c9
   style Deploy fill:#ffccbc
 ```
@@ -79,15 +76,14 @@ flowchart TB
 1. **Google Sheets → DB**: 確定済み装備データ（9シート）とnon_check_equipmentsをDBに反映
 2. **スクレイピング**: 公式サイトから最新20件の装備情報と画像を取得（equipment_img_scraping）
 3. **重複削除**: スクレイピングデータから重複を除去
-4. **BASE64変換**: 画像をBASE64化してequipment_img_base64テーブルに保存
-5. **未チェック抽出・自動判定**: 
+4. **未チェック抽出・自動判定**: 
    - equipment_img_scrapingと9シートの差分を抽出
    - 画像解析で装備種類（武器/防具/装飾）を自動判定
    - アビリティテキストからカテゴリを推測
    - non_check_equipmentsテーブルとスプレッドシートに書き込み
-6. **マスター作成**: 9シート + non_check_equipments → mart_equipments_masterに統合
-7. **装備評価生成**: 最新10件の装備の評価HTML・PNGを自動生成
-8. **アプリ表示**: mart_equipments_masterとequipment_img_base64を結合して表示
+5. **マスター作成**: 9シート + non_check_equipments → mart_equipments_masterに統合
+6. **装備評価生成**: 最新10件の装備の評価HTML・PNGを自動生成
+7. **アプリ表示**: mart_equipments_masterとequipment_img_scrapingを結合して表示
 
 ---
 
@@ -260,9 +256,6 @@ streamlit run app.py
 
 ### その他の実行スクリプト
 ```bash
-# BASE64画像を生成
-python generate_base64_images.py
-
 # マスターテーブルを作成
 python create_mart_equipments_master.py
 
@@ -280,7 +273,6 @@ python export_unchecked_equipment_to_gsheet.py
 - `reload_ss_to_db.py`：Google Sheets → DB 反映（9シート + non_check_equipments）
 - `scraping_equipment.py`：装備情報のスクレイピング（最新20件）
 - `index_drop_db.py`：重複装備画像の削除・データクレンジング
-- `generate_base64_images.py`：画像を BASE64 化して DB 更新
 - `export_unchecked_equipment_to_gsheet.py`：未チェック装備を自動判定してGoogle Sheetsにエクスポート
   - 画像解析で装備種類を判定
   - アビリティテキストからカテゴリを推測
@@ -296,8 +288,6 @@ python export_unchecked_equipment_to_gsheet.py
 ### その他
 - `static/`：装備画像などの静的ファイル
 - `evaluation_sheets/`：自動生成された装備評価HTML・PNG
-- `migrate_base64_table.py`：BASE64データを別テーブルに移行（初回実行済み）
-
 ---
 
 ## データベース構造
@@ -308,10 +298,6 @@ python export_unchecked_equipment_to_gsheet.py
   - non_check_equipments（未チェック装備）
   - これらを統合し、装備種類・アビリティカテゴリなどを含む完全なデータ
   
-- `equipment_img_base64`：装備画像のBASE64データ
-  - カラム: 装備名、レアリティ、画像名、IMG_URL、BASE64
-  - app.pyでの表示に使用
-
 - `equipment_img_scraping`：スクレイピングした装備データ
   - 画像URLやステータス、アビリティを保持
   - 装備種類・アビリティカテゴリは含まない（後処理で判定）
