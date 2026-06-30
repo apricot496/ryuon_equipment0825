@@ -56,20 +56,35 @@
 ## 仕組み（データフロー）
 ```mermaid
 flowchart TB
-  Web[公式サイト等<br/>スクレイピング] -->|scraping_equipment.py| ImgScraping[equipment_img_scraping]
-  ImgScraping -->|index_drop_db.py<br/>重複削除| ImgScraping
-  ImgScraping -->|差分抽出＋自動判定<br/>export_unchecked_equipment_to_gsheet.py| NonCheckSheet[non_check_equipments<br/>シート（SS）]
-  NonCheckSheet -->|手動確認・修正| NonCheckSheet
-  Sheets9[Google Spreadsheet<br/>確定済み装備データ（9シート）] -->|reload_ss_to_db.py| DB[(equipment.db)]
-  NonCheckSheet -->|reload_ss_to_db.py| DB
-  DB -->|create_mart_equipments_master.py| Mart[mart_equipments_master]
-  Mart --> App["app.py<br/>(Streamlit)"]
-  ImgScraping --> App
-  App --> Deploy[Streamlit Cloud<br/>公開アプリ]
+  Web[公式サイト<br/>スクレイピング]
 
-  style DB fill:#e1f5ff
-  style Mart fill:#fff9c4
-  style NonCheckSheet fill:#fce4ec
+  subgraph SS[Google Spreadsheet]
+    SS9[確定済み9シート<br/>ur武器/防具/装飾 等]
+    SSNonCheck[non_check_equipments<br/>※手動確認・修正]
+  end
+
+  subgraph DB[equipment.db]
+    ImgScraping[equipment_img_scraping]
+    Tables9[9テーブル<br/>ur武器/防具/装飾 等]
+    NonCheckDB[non_check_equipments]
+    Mart[mart_equipments_master]
+  end
+
+  Web -->|scraping_equipment.py| ImgScraping
+  ImgScraping -->|index_drop_db.py<br/>重複削除| ImgScraping
+  ImgScraping -->|差分抽出・自動判定<br/>新規行のみ追記| SSNonCheck
+  SS9 -->|reload_ss_to_db.py| Tables9
+  SSNonCheck -->|reload_ss_to_db.py| NonCheckDB
+  Tables9 --> Mart
+  NonCheckDB -->|create_mart_equipments_master.py| Mart
+  Mart --> App
+  ImgScraping --> App
+  App["app.py<br/>(Streamlit)"] --> Deploy[Streamlit Cloud<br/>公開アプリ]
+
+  style SS fill:#fff9c4,stroke:#f9a825
+  style DB fill:#e1f5ff,stroke:#0288d1
+  style SSNonCheck fill:#fce4ec
+  style Mart fill:#e8f5e9
   style App fill:#c8e6c9
   style Deploy fill:#ffccbc
 ```
