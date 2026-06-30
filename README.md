@@ -32,18 +32,18 @@
   - 手動実行：workflow_dispatch
 
 - 処理の流れ（概要）
-  1. Sheets → DB 反映（`reload_ss_to_db.py`）
-     - 9シート（ur武器/ur防具/ur装飾/ksr武器/ksr防具/ksr装飾/ssr武器/ssr防具/ssr装飾）を読み込み
-     - non_check_equipmentsシートを読み込み（前回の未確認装備）
-  2. スクレイピング（`scraping_equipment.py`）
+  1. スクレイピング（`scraping_equipment.py`）
      - 公式サイトから最新20件の装備情報を取得
      - equipment_img_scrapingテーブルに保存
-  3. 重複装備画像の削除（`index_drop_db.py`）
-  4. 未チェック装備のエクスポート（`export_unchecked_equipment_to_gsheet.py`）
+  2. 重複装備画像の削除（`index_drop_db.py`）
+  3. 未チェック装備のスプレッドシート追記（`export_unchecked_equipment_to_gsheet.py`）
      - equipment_img_scrapingと9シートの差分を抽出
      - 画像から装備種類（武器/防具/装飾）を自動判定
      - アビリティからカテゴリを推測
-     - non_check_equipmentsテーブルとスプレッドシートに書き込み
+     - **新規行のみ** non_check_equipmentsシートに追記（既存行は上書きしない）
+  4. Sheets → DB 反映（`reload_ss_to_db.py`）
+     - 9シート（ur武器/ur防具/ur装飾/ksr武器/ksr防具/ksr装飾/ssr武器/ssr防具/ssr装飾）を読み込み
+     - non_check_equipmentsシートを読み込み（手動修正済みの内容を含む）
   5. マスターテーブル作成（`create_mart_equipments_master.py`）
      - 9シート + non_check_equipments → mart_equipments_master作成
   6. ログ更新（`update_load_csv.py`）
@@ -56,34 +56,35 @@
 ## 仕組み（データフロー）
 ```mermaid
 flowchart TB
-  Sheets[Google Spreadsheet<br/>確定済み装備データ] -->|reload_ss_to_db.py| DB[(equipment.db)]
   Web[公式サイト等<br/>スクレイピング] -->|scraping_equipment.py| ImgScraping[equipment_img_scraping]
   ImgScraping -->|index_drop_db.py<br/>重複削除| ImgScraping
+  ImgScraping -->|差分抽出＋自動判定<br/>export_unchecked_equipment_to_gsheet.py| NonCheckSheet[non_check_equipments<br/>シート（SS）]
+  NonCheckSheet -->|手動確認・修正| NonCheckSheet
+  Sheets9[Google Spreadsheet<br/>確定済み装備データ（9シート）] -->|reload_ss_to_db.py| DB[(equipment.db)]
+  NonCheckSheet -->|reload_ss_to_db.py| DB
   DB -->|create_mart_equipments_master.py| Mart[mart_equipments_master]
-  Mart -->|差分抽出| Unchecked[未チェック装備]
-  Unchecked -->|export_unchecked_equipment_to_gsheet.py| Sheets
   Mart --> App["app.py<br/>(Streamlit)"]
   ImgScraping --> App
   App --> Deploy[Streamlit Cloud<br/>公開アプリ]
-  
+
   style DB fill:#e1f5ff
   style Mart fill:#fff9c4
+  style NonCheckSheet fill:#fce4ec
   style App fill:#c8e6c9
   style Deploy fill:#ffccbc
 ```
 
 ### データフローの説明
-1. **Google Sheets → DB**: 確定済み装備データ（9シート）とnon_check_equipmentsをDBに反映
-2. **スクレイピング**: 公式サイトから最新20件の装備情報と画像を取得（equipment_img_scraping）
-3. **重複削除**: スクレイピングデータから重複を除去
-4. **未チェック抽出・自動判定**: 
-   - equipment_img_scrapingと9シートの差分を抽出
-   - 画像解析で装備種類（武器/防具/装飾）を自動判定
-   - アビリティテキストからカテゴリを推測
-   - non_check_equipmentsテーブルとスプレッドシートに書き込み
+1. **スクレイピング**: 公式サイトから最新20件の装備情報と画像を取得（equipment_img_scraping）
+2. **重複削除**: スクレイピングデータから重複を除去
+3. **未チェック抽出・自動判定**: equipment_img_scrapingと9シートの差分を抽出し、装備種類・アビリティカテゴリを自動推測してnon_check_equipmentsシート（SS）に**新規行のみ追記**
+4. **Google Sheets → DB**: 確定済み装備データ（9シート）＋non_check_equipments（SS上で手動修正済み）をDBに反映
 5. **マスター作成**: 9シート + non_check_equipments → mart_equipments_masterに統合
 6. **装備評価生成**: 最新10件の装備の評価HTML・PNGを自動生成
 7. **アプリ表示**: mart_equipments_masterとequipment_img_scrapingを結合して表示
+
+> **non_check_equipmentsの修正フロー**  
+> スプレッドシート上のnon_check_equipmentsシートでアビリティカテゴリ等を手動修正すると、翌日のGHA実行時（手順4）にDBへ反映されます。
 
 ---
 
