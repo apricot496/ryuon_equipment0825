@@ -16,8 +16,7 @@ DB_PATH = "equipment.db"
     - URL_Number は 0 を設定（手動復旧データ）
 2. 元画像スクショフォルダ（元画像スクショ）に元画像を配置
 3. このスクリプトを実行（画像加工 + static へコピー + equipment_img_scraping へ登録）
-4. trans_base64.py を実行して BASE64 テーブルを更新
-5. index_drop_db.py を実行してDBのインデックス整理
+4. index_drop_db.py を実行してDBのインデックス整理
 
 注意:
 - URL_Number=0 のデータは、現行の一部自動処理（URL_Number != 0 条件）では対象外になる場合があります。

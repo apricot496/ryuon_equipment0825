@@ -50,9 +50,7 @@ SELECT
   "アビリティ",
   "新規フラグ",
   "URL_Number",
-  "IMG_URL",
-  "IMG_Path",
-  "BASE64"
+  "IMG_URL"
 FROM ranked
 WHERE rn = 1
 ORDER BY "URL_Number" ASC;
