@@ -55,38 +55,39 @@
 
 ## 仕組み（データフロー）
 ```mermaid
-flowchart TB
-  Web[公式サイト<br/>スクレイピング]
+flowchart LR
+  Web["龍が如くONLINE\n公式HP"]
 
-  subgraph SS[Google Spreadsheet]
-    SS9[確定済み9シート<br/>ur武器/防具/装飾 等]
-    SSNonCheck[non_check_equipments<br/>※手動確認・修正]
+  subgraph SS["SpreadSheet"]
+    direction TB
+    SSNonCheck["non_check_equipments"]
+    Check{{"check"}}
+    SS9["確認済みシート\nssr武器 / ssr防具\n・・・\nur装飾"]
+    SSNonCheck --> Check
+    Check -->|"確認済み"| SS9
   end
 
-  subgraph DB[equipment.db]
-    ImgScraping[equipment_img_scraping]
-    Tables9[9テーブル<br/>ur武器/防具/装飾 等]
-    NonCheckDB[non_check_equipments]
-    Mart[mart_equipments_master]
+  subgraph DB["equipment.db"]
+    direction TB
+    ImgScraping["equipment_img_scraping"]
+    NonCheckDB["non_check_equipments"]
+    Mart["mart_equipments_master"]
+    ImgScraping --> Mart
+    NonCheckDB --> Mart
   end
 
-  Web -->|scraping_equipment.py| ImgScraping
-  ImgScraping -->|index_drop_db.py<br/>重複削除| ImgScraping
-  ImgScraping -->|差分抽出・自動判定<br/>新規行のみ追記| SSNonCheck
-  SS9 -->|reload_ss_to_db.py| Tables9
-  SSNonCheck -->|reload_ss_to_db.py| NonCheckDB
-  Tables9 --> Mart
-  NonCheckDB -->|create_mart_equipments_master.py| Mart
+  App["Streamlit\napps"]
+
+  Web -->|"scraping_equipment.py"| ImgScraping
+  ImgScraping -.->|"新規行のみ追記\nexport_unchecked_equipment_to_gsheet.py"| SSNonCheck
+  SSNonCheck -->|"reload_ss_to_db.py"| NonCheckDB
+  SS9 -->|"reload_ss_to_db.py"| DB
   Mart --> App
-  ImgScraping --> App
-  App["app.py<br/>(Streamlit)"] --> Deploy[Streamlit Cloud<br/>公開アプリ]
 
-  style SS fill:#fff9c4,stroke:#f9a825
+  style SS fill:#e8f5e9,stroke:#388e3c
   style DB fill:#e1f5ff,stroke:#0288d1
   style SSNonCheck fill:#fce4ec
-  style Mart fill:#e8f5e9
   style App fill:#c8e6c9
-  style Deploy fill:#ffccbc
 ```
 
 ### データフローの説明
