@@ -142,9 +142,9 @@ def build_mart_score_dataframe(source_conn: sqlite3.Connection) -> pd.DataFrame:
         detail_cols["最高ステータススコア"].append(max(stat_scores) if stat_scores else 0)
         detail_cols["平均ステータススコア"].append(sum(stat_scores) / len(stat_scores) if stat_scores else 0)
 
-        ability_text = equipment.get("アビリティ", "")
-        ability_category = equipment.get("アビリティカテゴリ", "")
-        equipment_type = equipment.get("装備種類", "")
+        ability_text = equipment.get("アビリティ") or ""
+        ability_category = equipment.get("アビリティカテゴリ") or ""
+        equipment_type = equipment.get("装備種類") or ""
 
         if ability_text and ability_category and equipment_type and ability_category != "なし":
             ability_result = evaluate_ability(

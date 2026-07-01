@@ -368,9 +368,9 @@ def infer_categories_for_ability_cell(ability_cell: str) -> set[str]:
 def add_ability_category_column(df: pd.DataFrame) -> pd.DataFrame:
     out = df.copy()
 
-    def _to_str(cats: set[str]) -> str | None:
+    def _to_str(cats: set[str]) -> str:
         if not cats:
-            return None
+            return "不明"
         return " / ".join(sorted(cats))
 
     out["アビリティカテゴリ"] = out["アビリティ"].apply(lambda x: _to_str(infer_categories_for_ability_cell(x)))
@@ -486,18 +486,17 @@ def write_df_to_sheet(df: pd.DataFrame, spreadsheet_key: str, creds_info: dict, 
 
     if append_only:
         existing = ws.get_all_records()
-        if existing:
-            existing_keys = {(r["装備名"], r["レアリティ"]) for r in existing}
-            new_df = df[~df.apply(lambda r: (r["装備名"], r["レアリティ"]) in existing_keys, axis=1)]
-        else:
-            new_df = df
+        existing_keys = {(r["装備名"], r["レアリティ"]) for r in existing}
+        new_df = df[~df.apply(lambda r: (r["装備名"], r["レアリティ"]) in existing_keys, axis=1)]
 
         if new_df.empty:
             print(f"[Sheet] 新規行なし、追記スキップ")
             return
 
         rows = [[to_jsonable(v) for v in row] for row in new_df.itertuples(index=False, name=None)]
-        if not existing:
+        # シートが完全に空（ヘッダーも含め何もない）場合のみヘッダーを先頭に付与
+        has_header = bool(ws.row_values(1))
+        if not has_header:
             rows = [new_df.columns.tolist()] + rows
         ws.append_rows(rows, value_input_option="USER_ENTERED")
         print(f"[Sheet] {len(new_df)}件を追記しました")

@@ -1,3 +1,4 @@
+import argparse
 import os
 import json
 import sqlite3
@@ -11,13 +12,13 @@ from pathlib import Path
 import csv
 
 DB_FILE = "equipment.db"
-SHEET_NAMES = [
+CONFIRMED_SHEET_NAMES = [
     "ur武器", "ur防具", "ur装飾",
     "ksr武器", "ksr防具", "ksr装飾",
     "ssr武器", "ssr防具", "ssr装飾",
     "ability_category",
-    "non_check_equipments",
 ]
+SHEET_NAMES = CONFIRMED_SHEET_NAMES + ["non_check_equipments"]
 JST = timezone(timedelta(hours=9))
 
 def load_credentials_and_key():
@@ -76,6 +77,9 @@ def cast_dataframe(sheet_name: str, df: pd.DataFrame) -> pd.DataFrame:
     return df
 
 def save_to_db(sheet_name: str, df: pd.DataFrame, conn: sqlite3.Connection):
+    # ヘッダー行がデータとして混入している場合は除去（装備名列が列名自身と一致する行）
+    if "装備名" in df.columns:
+        df = df[df["装備名"] != "装備名"]
     df.to_sql(sheet_name, conn, if_exists="replace", index=False)
     print(f"✅ {sheet_name} を保存しました")
 
@@ -119,6 +123,13 @@ def insert_log(row_counts: dict, commit_message: str, csv_path: str = "load_log.
 
 
 def main():
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--only-confirmed", action="store_true",
+                        help="確認済み9テーブル+ability_categoryのみ読み込む（non_check_equipmentsをスキップ）")
+    args = parser.parse_args()
+
+    target_sheets = CONFIRMED_SHEET_NAMES if args.only_confirmed else SHEET_NAMES
+
     creds_info, spreadsheet_key = load_credentials_and_key()
     scope = ["https://www.googleapis.com/auth/spreadsheets"]
     credentials = service_account.Credentials.from_service_account_info(
@@ -129,7 +140,7 @@ def main():
     conn = sqlite3.connect(DB_FILE)
     row_counts = {}
 
-    for sheet in SHEET_NAMES:
+    for sheet in target_sheets:
         print(f"{sheet} を読み込み中...")
         worksheet = gc.open_by_key(spreadsheet_key).worksheet(sheet)
         data = worksheet.get_all_records()
@@ -137,6 +148,32 @@ def main():
         df = cast_dataframe(sheet, df)
         save_to_db(sheet, df, conn)
         row_counts[sheet] = len(df)
+
+    # 確認済み9テーブルに存在する装備を non_check_equipments から除去（non_checkを読み込んだ場合のみ）
+    if args.only_confirmed:
+        conn.close()
+        print(f"🎉 確認済みシートを {DB_FILE} に保存しました（non_check_equipmentsはスキップ）")
+        return
+
+    confirmed_tables = [
+        "ur武器", "ur防具", "ur装飾",
+        "ksr武器", "ksr防具", "ksr装飾",
+        "ssr武器", "ssr防具", "ssr装飾",
+    ]
+    delete_sql = " UNION ALL ".join(
+        f"SELECT 装備名, レアリティ FROM {t}" for t in confirmed_tables
+    )
+    cur = conn.cursor()
+    cur.execute(f"""
+        DELETE FROM non_check_equipments
+        WHERE (装備名, レアリティ) IN (
+            SELECT 装備名, レアリティ FROM ({delete_sql})
+        )
+    """)
+    removed = cur.rowcount
+    conn.commit()
+    if removed > 0:
+        print(f"🧹 non_check_equipments から確認済み重複 {removed} 件を削除しました")
 
     # コミットメッセージを取得（無ければ "manual run"）
     commit_message = os.getenv("GITHUB_COMMIT_MESSAGE", "local run")
