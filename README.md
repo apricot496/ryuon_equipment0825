@@ -60,39 +60,42 @@
 ```mermaid
 flowchart LR
   Web["龍が如くONLINE\n公式HP"]
+  App["Streamlit apps"]
+  EvalSheets["evaluation_sheets/\nHTML / PNG"]
+  LogCSV["load_log.csv"]
 
   subgraph SS["SpreadSheet"]
     direction TB
-    SSUnconfirmed["unconfirmed_equipments"]
-    Check{{"check"}}
     SSConfirmed["confirmed_* シート\nconfirmed_UR武器\nconfirmed_KSR武器\n・・・\nconfirmed_SSR装飾"]
-    SSUnconfirmed --> Check
-    Check -->|"確認済み"| SSConfirmed
+    SSCheck{"人間確認"}
+    SSUnconfirmed["unconfirmed_equipments"]
+    SSUnconfirmed --> SSCheck -->|"確認済み"| SSConfirmed
   end
 
   subgraph DB["ryuon_equipments.db"]
     direction TB
     ImgScraping["equipments_img_scraping"]
-    UnconfirmedDB["unconfirmed_equipments"]
-    ConfirmedTables["confirmed_* テーブル\nconfirmed_UR武器\nconfirmed_KSR武器\n・・・\nconfirmed_SSR装飾"]
+    DBConfirmed["confirmed_* テーブル\nconfirmed_UR武器\nconfirmed_KSR武器\n・・・\nconfirmed_SSR装飾"]
+    DBUnconfirmed["unconfirmed_equipments"]
     Mart["mart_equipments_master"]
-    ImgScraping --> Mart
-    UnconfirmedDB --> Mart
-    ConfirmedTables --> Mart
+    DBConfirmed -->|"⑤05_create_mart_master.py"| Mart
+    DBUnconfirmed -->|"⑤05_create_mart_master.py"| Mart
+    ImgScraping -.->|"⑤05_create_mart_master.py"| Mart
   end
 
-  App["Streamlit\napps"]
-
-  Web -->|"01_scrape_equipment.py"| ImgScraping
-  ImgScraping -.->|"04_export_unconfirmed_to_gsheet.py\n（差分抽出・フル上書き）"| SSUnconfirmed
-  SSUnconfirmed -->|"03_reload_ss_to_db.py"| UnconfirmedDB
-  SSConfirmed -->|"03_reload_ss_to_db.py"| ConfirmedTables
+  Web -->|"①01_scrape_equipment.py\n②02_index_drop_db.py（重複削除）"| ImgScraping
+  SSConfirmed -->|"③03_reload_ss_to_db.py"| DBConfirmed
+  SSUnconfirmed -->|"③03_reload_ss_to_db.py"| DBUnconfirmed
+  ImgScraping -.->|"④04_export_unconfirmed_to_gsheet.py\n（差分抽出・フル上書き）"| SSUnconfirmed
+  Mart -->|"⑥06_update_load_log.py"| LogCSV
+  Mart -->|"generate-evaluations.yml\n01_generate_evaluations.py"| EvalSheets
   Mart --> App
 
   style SS fill:#e8f5e9,stroke:#388e3c
   style DB fill:#e1f5ff,stroke:#0288d1
   style SSUnconfirmed fill:#fce4ec
   style App fill:#c8e6c9
+  style EvalSheets fill:#fff9c4,stroke:#f9a825
 ```
 
 ### データフローの説明
