@@ -166,15 +166,44 @@ def main():
     )
     cur = conn.cursor()
     cur.execute(f"""
-        DELETE FROM non_check_equipments
+        SELECT 装備名, レアリティ FROM non_check_equipments
         WHERE (装備名, レアリティ) IN (
             SELECT 装備名, レアリティ FROM ({delete_sql})
         )
     """)
-    removed = cur.rowcount
-    conn.commit()
-    if removed > 0:
-        print(f"🧹 non_check_equipments から確認済み重複 {removed} 件を削除しました")
+    confirmed_in_non_check = {(r[0], r[1]) for r in cur.fetchall()}
+
+    if confirmed_in_non_check:
+        cur.execute(f"""
+            DELETE FROM non_check_equipments
+            WHERE (装備名, レアリティ) IN (
+                SELECT 装備名, レアリティ FROM ({delete_sql})
+            )
+        """)
+        conn.commit()
+        print(f"🧹 DB non_check_equipments から確認済み重複 {len(confirmed_in_non_check)} 件を削除しました")
+
+        # SS non_check_equipments からも同じ行を削除
+        nc_ws = spreadsheet.worksheet("non_check_equipments")
+        all_rows = nc_ws.get_all_values()
+        if len(all_rows) > 1:
+            header = all_rows[0]
+            try:
+                name_col = header.index("装備名")
+                rarity_col = header.index("レアリティ")
+            except ValueError:
+                name_col, rarity_col = 0, 2
+
+            # 削除対象の行番号を収集（gspread は1-indexed、ヘッダーが行1→データ先頭は行2）
+            # 下から削除することで行番号のずれを防ぐ
+            rows_to_delete = [
+                i + 2
+                for i, row in enumerate(all_rows[1:])
+                if (row[name_col], row[rarity_col]) in confirmed_in_non_check
+            ]
+            for row_num in sorted(rows_to_delete, reverse=True):
+                nc_ws.delete_rows(row_num)
+            print(f"🧹 SS non_check_equipments から確認済み重複 {len(rows_to_delete)} 件を削除しました")
 
     # コミットメッセージを取得（無ければ "manual run"）
     commit_message = os.getenv("GITHUB_COMMIT_MESSAGE", "local run")
