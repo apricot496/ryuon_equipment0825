@@ -200,37 +200,44 @@ def _mse(a: np.ndarray, b: np.ndarray) -> float:
     return float(np.mean(d * d))
 
 
+def _rarity_from_table_name(table_name: str, equip_type: str) -> int:
+    """confirmed_UR武器 → RARITY_CODE["UR"] = 4"""
+    rarity = table_name.replace("confirmed_", "").replace(equip_type, "")
+    return RARITY_CODE.get(rarity, 999)
+
+
 def find_reference_images(conn: sqlite3.Connection, static_dir: Path) -> dict[str, Path]:
     """
     confirmed_* テーブルから装備種類ごとの参照画像を動的に探す
+    レアリティコードが若い順（UR=4 → KSR=5 → SSR=6）に参照画像を選ぶ
     """
     refs: dict[str, Path] = {}
 
     confirmed_tables = _get_confirmed_tables(conn)
     type_tables = {
-        "武器": [t for t in confirmed_tables if t.endswith("武器")],
-        "防具": [t for t in confirmed_tables if t.endswith("防具")],
-        "装飾": [t for t in confirmed_tables if t.endswith("装飾")],
+        "武器": sorted([t for t in confirmed_tables if t.endswith("武器")], key=lambda t: _rarity_from_table_name(t, "武器")),
+        "防具": sorted([t for t in confirmed_tables if t.endswith("防具")], key=lambda t: _rarity_from_table_name(t, "防具")),
+        "装飾": sorted([t for t in confirmed_tables if t.endswith("装飾")], key=lambda t: _rarity_from_table_name(t, "装飾")),
     }
-    
+
     for equip_type, table_names in type_tables.items():
         found: Path | None = None
-        
+
         for table_name in table_names:
             if not _table_exists(conn, table_name):
                 continue
-            
+
             df = _read_sql_table(conn, table_name)
-            
+
             for _, row in df[["装備名", "レアリティ"]].dropna().iterrows():
                 p = static_dir / f'{row["装備名"]}_{row["レアリティ"]}.png'
                 if p.exists():
                     found = p
                     break
-            
+
             if found:
                 break
-        
+
         if found is None:
             raise FileNotFoundError(
                 f"{equip_type} の参照画像が static_dir={static_dir} に見つかりませんでした。"
