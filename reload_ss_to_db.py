@@ -140,9 +140,10 @@ def main():
     conn = sqlite3.connect(DB_FILE)
     row_counts = {}
 
+    spreadsheet = gc.open_by_key(spreadsheet_key)
     for sheet in target_sheets:
         print(f"{sheet} を読み込み中...")
-        worksheet = gc.open_by_key(spreadsheet_key).worksheet(sheet)
+        worksheet = spreadsheet.worksheet(sheet)
         data = worksheet.get_all_records()
         df = pd.DataFrame(data)
         df = cast_dataframe(sheet, df)
