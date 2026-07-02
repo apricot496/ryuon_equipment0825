@@ -262,7 +262,7 @@ def add_equip_type_column(unconfirmed_df: pd.DataFrame, static_dir: Path, refs: 
 
     def _infer_row(row: pd.Series) -> str:
         existing = str(row.get("装備種類", "") or "").strip()
-        if existing and existing != UNKNOWN_LABEL:
+        if existing and existing not in (UNKNOWN_LABEL, "nan", "None"):
             return existing
         img_path = static_dir / f'{row["装備名"]}_{row["レアリティ"]}.png'
         return infer_equip_type_from_image(img_path, refs)
