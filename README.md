@@ -81,12 +81,15 @@ flowchart LR
     ConfirmedTables --> Mart
   end
 
+  Reload["03_reload_ss_to_db.py"]
   App["Streamlit\napps"]
 
   Web -->|"01_scrape_equipment.py"| ImgScraping
   ImgScraping -.->|"04_export_unconfirmed_to_gsheet.py\n（差分抽出・フル上書き）"| SSUnconfirmed
-  SSUnconfirmed -->|"03_reload_ss_to_db.py"| UnconfirmedDB
-  SSConfirmed -->|"03_reload_ss_to_db.py"| ConfirmedTables
+  SSUnconfirmed --> Reload
+  SSConfirmed --> Reload
+  Reload --> UnconfirmedDB
+  Reload --> ConfirmedTables
   Mart --> App
 
   style SS fill:#e8f5e9,stroke:#388e3c
