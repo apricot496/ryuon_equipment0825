@@ -8,7 +8,7 @@ from datetime import datetime, timezone, timedelta
 # ページのタイトルとアイコンを設定
 st.set_page_config(page_title="Ryuon_Apricot_Equipmentdata")
 
-DB_FILE = "equipment.db"
+DB_FILE = "ryuon_equipments.db"
 SCORE_DB_FILE = "equipments_mart_score.db"
 EVALUATION_SHEETS_IMAGE_DIR = Path("evaluation_sheets/images")
 
@@ -55,7 +55,7 @@ def load_data():
     for equipments in equipments_list:
         image_select = "e.IMG_URL AS 画像"
         image_join = """
-LEFT JOIN equipment_img_scraping AS e
+LEFT JOIN equipments_img_scraping AS e
 ON m.装備名 = e.装備名 AND m.レアリティ = e.レアリティ
     """
 
@@ -85,7 +85,7 @@ WHERE m.装備種類 = '{equipments}'
 
         if score_table:
             score_image_join = """
-LEFT JOIN equipment_img_scraping AS e
+LEFT JOIN equipments_img_scraping AS e
 ON s.装備名 = e.装備名 AND s.レアリティ = e.レアリティ
 """
             query = f"""

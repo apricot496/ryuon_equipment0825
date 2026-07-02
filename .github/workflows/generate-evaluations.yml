@@ -41,8 +41,8 @@ jobs:
       - name: Install Playwright browsers
         run: playwright install chromium --with-deps
 
-      - name: Generate evaluation files for latest 10 equipments
-        run: python generate_evaluations_for_github_action.py
+      - name: 01 Generate evaluation files for latest 10 equipments
+        run: python 01_generate_evaluations.py
 
       - name: Check generated files
         run: |

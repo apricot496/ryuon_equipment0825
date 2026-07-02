@@ -16,9 +16,9 @@ from google.oauth2.service_account import Credentials
 from dotenv import load_dotenv
 
 
-DB_PATH = "equipment.db"
+DB_PATH = "ryuon_equipments.db"
 
-# 元の差分抽出で必要なカラム（non_check_df のベース）
+# 元の差分抽出で必要なカラム（unconfirmed_df のベース）
 BASE_COLUMNS = [
     "装備名",
     "レアリティ",
@@ -35,6 +35,7 @@ BASE_COLUMNS = [
 DESIRED_COLUMNS = [
     "装備名",
     "装備番号",
+    "装備種類",
     "レアリティ",
     "体力",
     "攻撃力",
@@ -44,7 +45,6 @@ DESIRED_COLUMNS = [
     "命中率",
     "アビリティ",
     "アビリティカテゴリ",
-    "装備種類",
 ]
 
 # --- 画像判定パラメータ ---
@@ -58,7 +58,7 @@ ABILITY_SPLIT_RE = re.compile(r"\s*/\s*|\s*／\s*|\s*,\s*|\s*、\s*\n\s*|\s*\n\s
 
 # --- 装備番号コード ---
 TYPE_CODE = {"武器": 0, "防具": 1, "装飾": 2}
-RARITY_CODE = {"UR": 0, "KSR": 1, "SSR": 2}
+RARITY_CODE = {"UR": 4, "KSR": 5, "SSR": 6, "LR": 3}
 
 
 # =========================
@@ -100,33 +100,11 @@ def _read_sql_table(conn: sqlite3.Connection, table_name: str) -> pd.DataFrame:
     return pd.read_sql_query(f'SELECT * FROM "{table_name}"', con=conn)
 
 
-def resolve_non_check_sheet_and_table(conn: sqlite3.Connection) -> tuple[str, str]:
-    default = ("non_check_equipments", "non_check_equipments")
-    if not _table_exists(conn, "staying_check_equipment_list"):
-        return default
-
-    df = _read_sql_table(conn, "staying_check_equipment_list")
-
-    sheet_cols = [c for c in ["sheet_name", "sheet", "シート名"] if c in df.columns]
-    table_cols = [c for c in ["table_name", "table", "テーブル名"] if c in df.columns]
-    if not sheet_cols or not table_cols:
-        return default
-
-    sheet_col = sheet_cols[0]
-    table_col = table_cols[0]
-
-    hit = df[df[table_col].astype(str) == "non_check_equipments"]
-    if len(hit) > 0:
-        return (str(hit.iloc[0][sheet_col]), str(hit.iloc[0][table_col]))
-
-    hit = df[df[table_col].astype(str).str.contains("non_check", case=False, na=False)]
-    if len(hit) > 0:
-        return (str(hit.iloc[0][sheet_col]), str(hit.iloc[0][table_col]))
-
-    return default
+def resolve_unconfirmed_sheet_and_table() -> tuple[str, str]:
+    return ("unconfirmed_equipments", "unconfirmed_equipments")
 
 
-def upsert_non_check_to_sqlite(conn: sqlite3.Connection, df: pd.DataFrame, table_name: str) -> None:
+def upsert_unconfirmed_to_sqlite(conn: sqlite3.Connection, df: pd.DataFrame, table_name: str) -> None:
     """
     SQLite に書き込む（簡易upsert）
     キー: (装備名, レアリティ)
@@ -147,41 +125,40 @@ def upsert_non_check_to_sqlite(conn: sqlite3.Connection, df: pd.DataFrame, table
 
 
 # =========================
-# Build non_check_df
+# Build unconfirmed_df
 # =========================
 
-# 9シートのテーブル名リスト
-FIX_TABLES = [
-    "ssr武器", "ssr防具", "ssr装飾",
-    "ksr武器", "ksr防具", "ksr装飾",
-    "ur武器", "ur防具", "ur装飾",
-]
+def _get_confirmed_tables(conn: sqlite3.Connection) -> list[str]:
+    cur = conn.cursor()
+    cur.execute(
+        "SELECT name FROM sqlite_master WHERE type='table' AND name LIKE 'confirmed_%' ORDER BY name"
+    )
+    return [row[0] for row in cur.fetchall()]
+
 
 def load_fix_equipments_df(conn: sqlite3.Connection) -> pd.DataFrame:
     """
-    9シート（ur武器、ksr武器、ssr武器、ur防具、ksr防具、ssr防具、ur装飾、ksr装飾、ssr装飾）から
-    全ての確定済み装備を読み込む
-    
-    注：mart_equipments_masterは使用しない（non_check_equipmentsを含むため循環参照になる）
+    confirmed_* テーブルから全ての確定済み装備を読み込む（動的検出）
+    注：mart_equipments_masterは使用しない（unconfirmed_equipmentsを含むため循環参照になる）
     """
+    confirmed_tables = _get_confirmed_tables(conn)
     dfs = []
-    for table_name in FIX_TABLES:
-        if _table_exists(conn, table_name):
-            df = _read_sql_table(conn, table_name)
-            dfs.append(df)
-    
+    for table_name in confirmed_tables:
+        df = _read_sql_table(conn, table_name)
+        dfs.append(df)
+
     if not dfs:
-        raise RuntimeError("9シートのテーブルが1つも見つかりませんでした")
-    
+        raise RuntimeError("confirmed_* テーブルが1つも見つかりませんでした")
+
     fix_df = pd.concat(dfs, ignore_index=True)
     return fix_df.drop_duplicates(subset=["装備名", "レアリティ"], keep="first").reset_index(drop=True)
 
 
-def build_non_check_candidates_df(conn: sqlite3.Connection) -> pd.DataFrame:
+def build_unconfirmed_candidates_df(conn: sqlite3.Connection) -> pd.DataFrame:
     fix_df = load_fix_equipments_df(conn)
     fix_keys = fix_df[["装備名", "レアリティ"]].drop_duplicates()
 
-    scraped_df = _read_sql_table(conn, "equipment_img_scraping")
+    scraped_df = _read_sql_table(conn, "equipments_img_scraping")
 
     merged = scraped_df.merge(
         fix_keys,
@@ -189,9 +166,18 @@ def build_non_check_candidates_df(conn: sqlite3.Connection) -> pd.DataFrame:
         how="left",
         indicator=True,
     )
-    non_check_df = merged[merged["_merge"] == "left_only"].drop(columns=["_merge"])
-    non_check_df = non_check_df.drop_duplicates(subset=["装備名", "レアリティ"], keep="first")
-    return non_check_df[BASE_COLUMNS].reset_index(drop=True)
+    unconfirmed_df = merged[merged["_merge"] == "left_only"].drop(columns=["_merge"])
+    unconfirmed_df = unconfirmed_df.drop_duplicates(subset=["装備名", "レアリティ"], keep="first")
+    result = unconfirmed_df[BASE_COLUMNS].reset_index(drop=True)
+
+    # unconfirmed_equipments に既存の装備種類があれば引き継ぐ（画像分類の前に利用）
+    if _table_exists(conn, "unconfirmed_equipments"):
+        existing = _read_sql_table(conn, "unconfirmed_equipments")[["装備名", "レアリティ", "装備種類"]]
+        result = result.merge(existing, on=["装備名", "レアリティ"], how="left")
+    else:
+        result["装備種類"] = None
+
+    return result
 
 
 # =========================
@@ -214,37 +200,44 @@ def _mse(a: np.ndarray, b: np.ndarray) -> float:
     return float(np.mean(d * d))
 
 
+def _rarity_from_table_name(table_name: str, equip_type: str) -> int:
+    """confirmed_UR武器 → RARITY_CODE["UR"] = 4"""
+    rarity = table_name.replace("confirmed_", "").replace(equip_type, "")
+    return RARITY_CODE.get(rarity, 999)
+
+
 def find_reference_images(conn: sqlite3.Connection, static_dir: Path) -> dict[str, Path]:
     """
-    9シートから装備種類ごとの参照画像を探す
+    confirmed_* テーブルから装備種類ごとの参照画像を動的に探す
+    レアリティコードが若い順（UR=4 → KSR=5 → SSR=6）に参照画像を選ぶ
     """
     refs: dict[str, Path] = {}
-    
-    # 各装備種類に対応するテーブルリスト
+
+    confirmed_tables = _get_confirmed_tables(conn)
     type_tables = {
-        "武器": ["ur武器", "ksr武器", "ssr武器"],
-        "防具": ["ur防具", "ksr防具", "ssr防具"],
-        "装飾": ["ur装飾", "ksr装飾", "ssr装飾"],
+        "武器": sorted([t for t in confirmed_tables if t.endswith("武器")], key=lambda t: _rarity_from_table_name(t, "武器")),
+        "防具": sorted([t for t in confirmed_tables if t.endswith("防具")], key=lambda t: _rarity_from_table_name(t, "防具")),
+        "装飾": sorted([t for t in confirmed_tables if t.endswith("装飾")], key=lambda t: _rarity_from_table_name(t, "装飾")),
     }
-    
+
     for equip_type, table_names in type_tables.items():
         found: Path | None = None
-        
+
         for table_name in table_names:
             if not _table_exists(conn, table_name):
                 continue
-            
+
             df = _read_sql_table(conn, table_name)
-            
+
             for _, row in df[["装備名", "レアリティ"]].dropna().iterrows():
                 p = static_dir / f'{row["装備名"]}_{row["レアリティ"]}.png'
                 if p.exists():
                     found = p
                     break
-            
+
             if found:
                 break
-        
+
         if found is None:
             raise FileNotFoundError(
                 f"{equip_type} の参照画像が static_dir={static_dir} に見つかりませんでした。"
@@ -271,10 +264,13 @@ def infer_equip_type_from_image(img_path: Path, refs: dict[str, np.ndarray]) -> 
     return best_label
 
 
-def add_equip_type_column(non_check_df: pd.DataFrame, static_dir: Path, refs: dict[str, np.ndarray]) -> pd.DataFrame:
-    out = non_check_df.copy()
+def add_equip_type_column(unconfirmed_df: pd.DataFrame, static_dir: Path, refs: dict[str, np.ndarray]) -> pd.DataFrame:
+    out = unconfirmed_df.copy()
 
     def _infer_row(row: pd.Series) -> str:
+        existing = str(row.get("装備種類", "") or "").strip()
+        if existing and existing not in (UNKNOWN_LABEL, "nan", "None"):
+            return existing
         img_path = static_dir / f'{row["装備名"]}_{row["レアリティ"]}.png'
         return infer_equip_type_from_image(img_path, refs)
 
@@ -378,7 +374,7 @@ def add_ability_category_column(df: pd.DataFrame) -> pd.DataFrame:
 
 
 # =========================
-# 装備番号付与（non_check_df用）
+# 装備番号付与（unconfirmed_df用）
 # =========================
 def add_equipment_no_for_non_check(df: pd.DataFrame) -> pd.DataFrame:
     out = df.copy()
@@ -513,7 +509,7 @@ def write_df_to_sheet(df: pd.DataFrame, spreadsheet_key: str, creds_info: dict, 
 # =========================
 def main() -> None:
     parser = argparse.ArgumentParser(
-        description="Build non_check_df and write to SQLite + Google Sheets (default)."
+        description="Build unconfirmed_df and write to SQLite + Google Sheets (default)."
     )
     parser.add_argument("--static-dir", default="static", help="画像ディレクトリ (default: static)")
     parser.add_argument("--no-write-db", action="store_true", help="DBへの書き込みを無効化")
@@ -539,7 +535,7 @@ def main() -> None:
     conn = sqlite3.connect(DB_PATH)
 
     # 1) non_check候補
-    non_check_df = build_non_check_candidates_df(conn)
+    unconfirmed_df = build_unconfirmed_candidates_df(conn)
 
     # 2) 装備種類付与
     if args.ref_weapon and args.ref_armor and args.ref_accessory:
@@ -548,42 +544,42 @@ def main() -> None:
         ref_paths = find_reference_images(conn, static_dir)
 
     refs = build_reference_icons(ref_paths)
-    non_check_df = add_equip_type_column(non_check_df, static_dir=static_dir, refs=refs)
+    unconfirmed_df = add_equip_type_column(unconfirmed_df, static_dir=static_dir, refs=refs)
 
     # 3) アビリティカテゴリ付与
-    non_check_df = add_ability_category_column(non_check_df)
+    unconfirmed_df = add_ability_category_column(unconfirmed_df)
 
     # 4) 装備番号付与
-    non_check_df = add_equipment_no_for_non_check(non_check_df)
+    unconfirmed_df = add_equipment_no_for_non_check(unconfirmed_df)
 
     # 5) NULL許容整数（0とNULLを区別）
-    non_check_df = enforce_nullable_int_stats(non_check_df)
+    unconfirmed_df = enforce_nullable_int_stats(unconfirmed_df)
 
     # 6) 列順
-    non_check_df = reorder_columns_for_output(non_check_df)
+    unconfirmed_df = reorder_columns_for_output(unconfirmed_df)
 
     # 7) 書き込み先解決
     sheet_name = args.sheet_name
     table_name = args.table_name
     if sheet_name is None or table_name is None:
-        default_sheet, default_table = resolve_non_check_sheet_and_table(conn)
+        default_sheet, default_table = resolve_unconfirmed_sheet_and_table()
         sheet_name = sheet_name or default_sheet
         table_name = table_name or default_table
 
     # 8) DBへ書き込み
     if write_db:
-        upsert_non_check_to_sqlite(conn, non_check_df, table_name=table_name)
-        print(f"[DB] wrote table='{table_name}' rows={len(non_check_df)} (upsert by 装備名+レアリティ)")
+        upsert_unconfirmed_to_sqlite(conn, unconfirmed_df, table_name=table_name)
+        print(f"[DB] wrote table='{table_name}' rows={len(unconfirmed_df)} (upsert by 装備名+レアリティ)")
 
-    # 9) Sheetへ書き込み（新規行のみ追記）
+    # 9) Sheetへ書き込み（DESIRED_COLUMNS順でフル上書き）
     if write_sheet:
         creds_info, spreadsheet_key = load_credentials_and_key()
-        write_df_to_sheet(non_check_df, spreadsheet_key=spreadsheet_key, creds_info=creds_info, sheet_name=sheet_name, append_only=True)
-        print(f"[Sheet] append to spreadsheet='{spreadsheet_key}' sheet='{sheet_name}'")
+        write_df_to_sheet(unconfirmed_df, spreadsheet_key=spreadsheet_key, creds_info=creds_info, sheet_name=sheet_name, append_only=False)
+        print(f"[Sheet] wrote to spreadsheet='{spreadsheet_key}' sheet='{sheet_name}'")
 
     print("Reference images:", {k: str(v) for k, v in ref_paths.items()})
-    print("装備種類 counts:\n", non_check_df["装備種類"].value_counts(dropna=False))
-    print("アビリティカテゴリ null:", int(non_check_df["アビリティカテゴリ"].isna().sum()))
+    print("装備種類 counts:\n", unconfirmed_df["装備種類"].value_counts(dropna=False))
+    print("アビリティカテゴリ null:", int(unconfirmed_df["アビリティカテゴリ"].isna().sum()))
     conn.close()
 
 

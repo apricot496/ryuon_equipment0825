@@ -8,7 +8,7 @@ from typing import Dict, Optional
 from ability_evaluator import evaluate_ability
 from itertools import combinations
 
-DB_FILE = "equipment.db"
+DB_FILE = "ryuon_equipments.db"
 
 # 全装備種類で全ステータスを評価対象とする
 STATUS_COLUMNS = {

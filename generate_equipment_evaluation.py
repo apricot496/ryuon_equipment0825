@@ -12,7 +12,7 @@ from itertools import combinations
 import asyncio
 from playwright.async_api import async_playwright
 
-DB_FILE = "equipment.db"
+DB_FILE = "ryuon_equipments.db"
 OUTPUT_DIR = Path("evaluation_sheets")
 IMAGE_DIR = OUTPUT_DIR / "images"
 
@@ -31,7 +31,7 @@ def get_equipment_data(conn: sqlite3.Connection, equipment_name: str, rarity: st
     
     優先順位：
     1. mart_equipments_masterにある場合はそちらを使用（完全なデータ）
-    2. equipment_img_scrapingのみにある場合はそちらを使用（装備種類などは不明）
+    2. equipments_img_scrapingのみにある場合はそちらを使用（装備種類などは不明）
     """
     cur = conn.cursor()
     
@@ -43,7 +43,7 @@ def get_equipment_data(conn: sqlite3.Connection, equipment_name: str, rarity: st
             s.IMG_URL,
             s.画像名
         FROM mart_equipments_master m
-        LEFT JOIN equipment_img_scraping s 
+        LEFT JOIN equipments_img_scraping s 
             ON m.装備名 = s.装備名 AND m.レアリティ = s.レアリティ
         WHERE m.装備名 = ? AND m.レアリティ = ?
     """, (equipment_name, rarity))
@@ -53,7 +53,7 @@ def get_equipment_data(conn: sqlite3.Connection, equipment_name: str, rarity: st
         columns = [d[0] for d in cur.description]
         return dict(zip(columns, row))
     
-    # mart_equipments_masterになければ、equipment_img_scrapingから取得
+    # mart_equipments_masterになければ、equipments_img_scrapingから取得
     cur.execute("""
         SELECT 
             装備名,
@@ -71,7 +71,7 @@ def get_equipment_data(conn: sqlite3.Connection, equipment_name: str, rarity: st
             NULL as 装備種類,
             NULL as アビリティカテゴリ,
             NULL as 装備番号
-        FROM equipment_img_scraping
+        FROM equipments_img_scraping
         WHERE 装備名 = ? AND レアリティ = ?
     """, (equipment_name, rarity))
     
@@ -396,7 +396,7 @@ def find_superior_equipment(conn: sqlite3.Connection, equipment: Dict, ability_s
         s.画像名 AS img_name,
         s.IMG_URL AS img_url
     FROM mart_equipments_master m
-    LEFT JOIN equipment_img_scraping s ON m.装備名 = s.装備名 AND m.レアリティ = s.レアリティ
+    LEFT JOIN equipments_img_scraping s ON m.装備名 = s.装備名 AND m.レアリティ = s.レアリティ
     WHERE m.装備種類 = ?
     AND NOT (m.装備名 = ? AND m.レアリティ = ?)
     """

@@ -3,9 +3,9 @@ from __future__ import annotations
 import sqlite3
 from pathlib import Path
 
-# ==== 設定（パス事故防止：このファイルと同じ場所の equipment.db を参照） ====
+# ==== 設定（パス事故防止：このファイルと同じ場所の ryuon_equipments.db を参照） ====
 BASE_DIR = Path(__file__).resolve().parent
-DB_PATH = BASE_DIR / "equipment.db"
+DB_PATH = BASE_DIR / "ryuon_equipments.db"
 
 
 def table_exists(conn: sqlite3.Connection, name: str) -> bool:
@@ -16,17 +16,17 @@ def table_exists(conn: sqlite3.Connection, name: str) -> bool:
     return row is not None
 
 
-def rebuild_equipment_img_scraping(conn: sqlite3.Connection) -> None:
+def rebuild_equipments_img_scraping(conn: sqlite3.Connection) -> None:
     """
-    equipment_img_scraping を (装備名, レアリティ) で1件に圧縮して置き換える。
+    equipments_img_scraping を (装備名, レアリティ) で1件に圧縮して置き換える。
     URL_Number が小さいものを採用。
     """
-    if table_exists(conn, "new_equipment_img_scraping"):
-        conn.execute('DROP TABLE "new_equipment_img_scraping"')
+    if table_exists(conn, "new_equipments_img_scraping"):
+        conn.execute('DROP TABLE "new_equipments_img_scraping"')
 
     conn.execute(
         """
-CREATE TABLE "new_equipment_img_scraping" AS
+CREATE TABLE "new_equipments_img_scraping" AS
 WITH ranked AS (
   SELECT
     *,
@@ -34,7 +34,7 @@ WITH ranked AS (
       PARTITION BY "装備名", "レアリティ"
       ORDER BY "URL_Number" ASC
     ) AS rn
-  FROM "equipment_img_scraping"
+  FROM "equipments_img_scraping"
   WHERE "装備名" IS NOT NULL
 )
 SELECT
@@ -57,14 +57,14 @@ ORDER BY "URL_Number" ASC;
 """
     )
 
-    conn.execute('DROP TABLE "equipment_img_scraping"')
-    conn.execute('ALTER TABLE "new_equipment_img_scraping" RENAME TO "equipment_img_scraping"')
+    conn.execute('DROP TABLE "equipments_img_scraping"')
+    conn.execute('ALTER TABLE "new_equipments_img_scraping" RENAME TO "equipments_img_scraping"')
 
 
 def main() -> None:
     conn = sqlite3.connect(str(DB_PATH))
     try:
-        rebuild_equipment_img_scraping(conn)
+        rebuild_equipments_img_scraping(conn)
         conn.commit()
     finally:
         conn.close()

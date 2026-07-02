@@ -5,7 +5,7 @@ import streamlit as st
 def load_log():
     """ログテーブルの更新履歴を読み込み"""
     try:
-        with sqlite3.connect("equipment.db") as conn:
+        with sqlite3.connect("ryuon_equipments.db") as conn:
             # SQLiteでdatetime()に変換してORDER
             query = 'SELECT * FROM load_log ORDER BY datetime("更新日時") DESC;'
             df = pd.read_sql(query, conn)
@@ -21,9 +21,9 @@ def load_log():
 def load_scraiping():
     """スクレイピング結果の更新履歴を読み込み"""
     try:
-        with sqlite3.connect("equipment.db") as conn:
+        with sqlite3.connect("ryuon_equipments.db") as conn:
             # SQLiteでdatetime()に変換してORDER
-            query = 'SELECT * FROM equipment_img_scraping ORDER BY URL_Number DESC;'
+            query = 'SELECT * FROM equipments_img_scraping ORDER BY URL_Number DESC;'
             df = pd.read_sql(query, conn)
             
     except Exception as e:
@@ -33,7 +33,7 @@ def load_scraiping():
 
 def load_equipments_data():
     """SQLite DB からデータを読み込む"""
-    conn = sqlite3.connect("equipment.db")
+    conn = sqlite3.connect("ryuon_equipments.db")
     # スプレッドシートに記載済みのdataを取得
     equipments_list = ["武器", "防具", "装飾"]
     rarelity_order = ['ur', 'ksr', 'ssr']
@@ -64,7 +64,7 @@ FROM '{sheet_name}' """, conn)
                             , 回避率
                             , アビリティ
                             ,URL_Number
-                              FROM equipment_img_scraping
+                              FROM equipments_img_scraping
                               """, conn)
     df_scraping["URL"] = "https://ryu.sega-online.jp/news/" + df_scraping["URL_Number"].astype(str) + "/"
 
