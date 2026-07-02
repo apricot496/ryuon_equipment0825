@@ -2,11 +2,11 @@ import streamlit as st
 import pandas as pd
 import sqlite3
 
-DB_PATH = "equipment.db"
+DB_PATH = "ryuon_equipments.db"
 
 # DB接続
 conn = sqlite3.connect(DB_PATH)
-df = pd.read_sql(f"SELECT * FROM equipment_img_scraping", conn)
+df = pd.read_sql(f"SELECT * FROM equipments_img_scraping", conn)
 conn.close()
 
 col_cfg = {

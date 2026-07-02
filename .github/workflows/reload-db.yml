@@ -35,16 +35,16 @@ jobs:
       - name: Install dependencies
         run: pip install -r requirements-gha.txt
 
-      - name: Scrape Equipment Data
+      - name: 01 Scrape Equipment Data
         env:
           NOW_BRANCH: ${{ github.ref_name }}
         run: |
-          timeout -k 5s 120s python scraping_equipment.py || true
+          timeout -k 5s 120s python 01_scrape_equipment.py || true
 
-      - name: Remove duplicate equipment images
-        run: python index_drop_db.py
+      - name: 02 Remove duplicate equipment images
+        run: python 02_index_drop_db.py
 
-      - name: Reload Sheets to DB
+      - name: 03 Reload Sheets to DB
         env:
           SPREADSHEET_KEY_NAME: ${{ secrets.SPREADSHEET_KEY_NAME }}
           GCP_TYPE: ${{ secrets.GCP_TYPE }}
@@ -59,9 +59,9 @@ jobs:
           GCP_CLIENT_CERT_URL: ${{ secrets.GCP_CLIENT_CERT_URL }}
           GCP_UNIVERSE_DOMAIN: ${{ secrets.GCP_UNIVERSE_DOMAIN }}
           GITHUB_COMMIT_MESSAGE: "Auto update from GitHub Actions"
-        run: python reload_ss_to_db.py
+        run: python 03_reload_ss_to_db.py
 
-      - name: Export unchecked equipment to gsheet
+      - name: 04 Export unconfirmed equipment to gsheet
         env:
           SPREADSHEET_KEY_NAME: ${{ secrets.SPREADSHEET_KEY_NAME }}
           GCP_TYPE: ${{ secrets.GCP_TYPE }}
@@ -75,22 +75,22 @@ jobs:
           GCP_AUTH_PROVIDER_CERT_URL: ${{ secrets.GCP_AUTH_PROVIDER_CERT_URL }}
           GCP_CLIENT_CERT_URL: ${{ secrets.GCP_CLIENT_CERT_URL }}
           GCP_UNIVERSE_DOMAIN: ${{ secrets.GCP_UNIVERSE_DOMAIN }}
-        run: python export_unchecked_equipment_to_gsheet.py --no-write-db
+        run: python 04_export_unconfirmed_to_gsheet.py --no-write-db
 
-      - name: Create mart_equipments_master table
-        run: python create_mart_equipments_master.py
+      - name: 05 Create mart_equipments_master table
+        run: python 05_create_mart_master.py
 
-      - name: Update load_log.csv
-        run: python update_load_csv.py
+      - name: 06 Update load_log.csv
+        run: python 06_update_load_log.py
 
-      - name: Optimize database with VACUUM
-        run: python vacuum_db.py
+      - name: 07 Optimize database with VACUUM
+        run: python 07_vacuum_db.py
 
       - name: Check file sizes
         run: |
-          ls -lh equipment.db
-          du -h equipment.db
-          git ls-files -s equipment.db
+          ls -lh ryuon_equipments.db
+          du -h ryuon_equipments.db
+          git ls-files -s ryuon_equipments.db
 
       - name: Commit and Push changes
         env:
@@ -103,13 +103,13 @@ jobs:
           git config --global user.email "github-actions[bot]@users.noreply.github.com"
           git remote set-url origin "https://x-access-token:${GITHUB_TOKEN}@github.com/${{ github.repository }}"
 
-          rm -f equipment.db-wal equipment.db-shm equipment.db-journal || true
+          rm -f ryuon_equipments.db-wal ryuon_equipments.db-shm ryuon_equipments.db-journal || true
 
           git status --porcelain
 
-          git add equipment.db load_log.csv static/ || true
+          git add ryuon_equipments.db load_log.csv static/ || true
 
           now=$(date '+%Y-%m-%d %H:%M:%S')
-          git commit -m "[$now] equipment.db 更新" || echo "No changes to commit"
+          git commit -m "[$now] ryuon_equipments.db 更新" || echo "No changes to commit"
 
           git push origin "HEAD:$branch"

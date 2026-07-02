@@ -9,7 +9,7 @@ import subprocess
 from pathlib import Path
 from generate_equipment_evaluation import generate_evaluation_html, save_evaluation_file, generate_preview_image
 
-DB_FILE = "equipment.db"
+DB_FILE = "ryuon_equipments.db"
 OUTPUT_DIR = Path("evaluation_sheets")
 IMAGE_DIR = OUTPUT_DIR / "images"
 
@@ -18,7 +18,7 @@ def get_latest_equipments(conn: sqlite3.Connection, limit: int = 10):
     """
     URL_Numberが最も大きい装備をlimit件取得
     
-    equipment_img_scrapingをベースに取得するため、
+    equipments_img_scrapingをベースに取得するため、
     スプレッドシート未登録の装備（イベント報酬装備など）も含まれる
     """
     query = """
@@ -26,7 +26,7 @@ def get_latest_equipments(conn: sqlite3.Connection, limit: int = 10):
         s.装備名,
         s.レアリティ,
         s.URL_Number
-    FROM equipment_img_scraping s
+    FROM equipments_img_scraping s
     WHERE s.URL_Number IS NOT NULL AND s.URL_Number != 0
     ORDER BY CAST(s.URL_Number AS INTEGER) DESC
     LIMIT ?

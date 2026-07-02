@@ -7,7 +7,7 @@ import sqlite3
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
 
-DB_FILE = "equipment.db"
+DB_FILE = "ryuon_equipments.db"
 CATEGORY_SETTINGS_FILE = Path("config/ability_category_settings.csv")
 LEGACY_CATEGORY_SETTINGS_FILE = Path("mock_評価/ability_category_settings.csv")
 DEFAULT_CATEGORY_IMPORTANCE = 60.0

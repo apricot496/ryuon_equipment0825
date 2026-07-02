@@ -8,7 +8,7 @@ import re
 from pathlib import Path
 from ability_evaluator import extract_effect_value, evaluate_ability
 
-DB_FILE = "equipment.db"
+DB_FILE = "ryuon_equipments.db"
 OUTPUT_FILE = "mock_評価/equipment_max_effects.csv"
 OUTPUT_LONG_FILE = "mock_評価/equipment_max_effects_long.csv"
 OUTPUT_SCORE_FILE = "mock_評価/equipment_ability_scores.csv"

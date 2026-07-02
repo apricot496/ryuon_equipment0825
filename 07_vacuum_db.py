@@ -6,7 +6,7 @@ import sqlite3
 from pathlib import Path
 
 BASE_DIR = Path(__file__).resolve().parent
-DB_PATH = BASE_DIR / "equipment.db"
+DB_PATH = BASE_DIR / "ryuon_equipments.db"
 
 
 def vacuum_database():
