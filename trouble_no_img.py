@@ -15,7 +15,7 @@ DB_PATH = "ryuon_equipments.db"
     - 既存ステータス列（体力/攻撃力/防御力/会心率/回避率/命中率/アビリティ）も必要に応じて記載
     - URL_Number は 0 を設定（手動復旧データ）
 2. 元画像スクショフォルダ（元画像スクショ）に元画像を配置
-3. このスクリプトを実行（画像加工 + static へコピー + equipments_img_scraping へ登録）
+3. このスクリプトを実行（画像加工 + static へコピー + src_equipments へ登録）
 4. index_drop_db.py を実行してDBのインデックス整理
 
 注意:
@@ -65,7 +65,7 @@ def insert_to_db(equips):
     cur = conn.cursor()
     for eq in equips:
         cur.execute("""
-            INSERT INTO equipments_img_scraping
+            INSERT INTO src_equipments
             (装備名, レアリティ, 画像名, 体力, 攻撃力, 防御力, 会心率, 回避率, 命中率, アビリティ, 新規フラグ, URL_Number, IMG_URL)
             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """, (

@@ -26,7 +26,7 @@ def init_db():
     conn = sqlite3.connect(DB_PATH)
     cur = conn.cursor()
     cur.execute("""
-        CREATE TABLE IF NOT EXISTS equipments_img_scraping (
+        CREATE TABLE IF NOT EXISTS src_equipments (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             装備名 TEXT,
             レアリティ TEXT,
@@ -51,7 +51,7 @@ def insert_to_db(equips):
     cur = conn.cursor()
     for eq in equips:
         cur.execute("""
-            INSERT INTO equipments_img_scraping
+            INSERT INTO src_equipments
             (装備名, レアリティ, 画像名, 体力, 攻撃力, 防御力, 会心率, 回避率, 命中率, アビリティ, 新規フラグ, URL_Number, IMG_URL)
             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """, (
@@ -67,7 +67,7 @@ def insert_to_db(equips):
 def get_db_max_url():
     conn = sqlite3.connect(DB_PATH)
     cur = conn.cursor()
-    cur.execute("SELECT MAX(URL_Number) FROM equipments_img_scraping")
+    cur.execute("SELECT MAX(URL_Number) FROM src_equipments")
     row = cur.fetchone()
     conn.close()
     return row[0] if row and row[0] else 0

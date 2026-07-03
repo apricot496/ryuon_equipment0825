@@ -55,7 +55,7 @@ def load_data():
     for equipments in equipments_list:
         image_select = "e.IMG_URL AS 画像"
         image_join = """
-LEFT JOIN equipments_img_scraping AS e
+LEFT JOIN src_equipments AS e
 ON m.装備名 = e.装備名 AND m.レアリティ = e.レアリティ
     """
 
@@ -78,14 +78,14 @@ SELECT
     , m.発動条件
     , NULL AS アビリティ_抽出効果値
     , NULL AS アビリティ_発動条件
-FROM mart_equipments_master AS m
+FROM mart_equipments AS m
 {image_join}
 WHERE m.装備種類 = '{equipments}'
 """
 
         if score_table:
             score_image_join = """
-LEFT JOIN equipments_img_scraping AS e
+LEFT JOIN src_equipments AS e
 ON s.装備名 = e.装備名 AND s.レアリティ = e.レアリティ
 """
             query = f"""
@@ -144,7 +144,7 @@ WHERE s.装備種類 = '{equipments}'
         df_list.append(df)
 
     # アビリティカテゴリ
-    df_category = pd.read_sql("SELECT * FROM 'ability_category'", conn)
+    df_category = pd.read_sql("SELECT * FROM 'mst_ability_category'", conn)
     df_nan = pd.DataFrame({'アビリティカテゴリ分類': ['アビリティなし']})
     df_category = pd.concat([df_category, df_nan])
 

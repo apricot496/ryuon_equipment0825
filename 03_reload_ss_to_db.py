@@ -12,6 +12,11 @@ DB_FILE = "ryuon_equipments.db"
 UNCONFIRMED_SHEET = "unconfirmed_equipments"
 JST = timezone(timedelta(hours=9))
 
+# SSシート名とDBテーブル名が異なる場合のマッピング
+SHEET_TO_TABLE: dict[str, str] = {
+    "ability_category": "mst_ability_category",
+}
+
 
 def load_credentials_and_key():
     if os.getenv("GITHUB_ACTIONS") == "true":
@@ -66,7 +71,8 @@ def cast_dataframe(sheet_name: str, df: pd.DataFrame) -> pd.DataFrame:
 def save_to_db(sheet_name: str, df: pd.DataFrame, conn: sqlite3.Connection):
     if "装備名" in df.columns:
         df = df[df["装備名"] != "装備名"]
-    df.to_sql(sheet_name, conn, if_exists="replace", index=False)
+    table_name = SHEET_TO_TABLE.get(sheet_name, sheet_name)
+    df.to_sql(table_name, conn, if_exists="replace", index=False)
     print(f"✅ {sheet_name} を保存しました ({len(df)}件)")
 
 

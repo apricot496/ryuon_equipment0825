@@ -7,22 +7,22 @@ import sys
 DB_FILE = "ryuon_equipments.db"
 
 
-def fix_equipments_img_scraping(conn):
-    """equipments_img_scrapingテーブルの型を修正"""
+def fix_src_equipments(conn):
+    """src_equipmentsテーブルの型を修正"""
     print("=" * 60)
-    print("equipments_img_scrapingテーブルの型を修正中...")
+    print("src_equipmentsテーブルの型を修正中...")
     print("=" * 60)
     
     cur = conn.cursor()
     
     # 既存データを取得
-    cur.execute("SELECT COUNT(*) FROM equipments_img_scraping")
+    cur.execute("SELECT COUNT(*) FROM src_equipments")
     count = cur.fetchone()[0]
     print(f"既存データ: {count}件")
     
     # 新しいテーブルを作成
     cur.execute("""
-        CREATE TABLE equipments_img_scraping_new (
+        CREATE TABLE src_equipments_new (
             装備名 TEXT,
             レアリティ TEXT,
             画像名 TEXT,
@@ -41,7 +41,7 @@ def fix_equipments_img_scraping(conn):
     
     # データを移行（型変換）
     cur.execute("""
-        INSERT INTO equipments_img_scraping_new
+        INSERT INTO src_equipments_new
         SELECT 
             装備名,
             レアリティ,
@@ -56,15 +56,15 @@ def fix_equipments_img_scraping(conn):
             新規フラグ,
             CAST(URL_Number AS INTEGER),
             IMG_URL
-        FROM equipments_img_scraping
+        FROM src_equipments
         ORDER BY CAST(URL_Number AS INTEGER) ASC
     """)
     
     # 古いテーブルを削除して新しいテーブルをリネーム
-    cur.execute("DROP TABLE equipments_img_scraping")
-    cur.execute("ALTER TABLE equipments_img_scraping_new RENAME TO equipments_img_scraping")
+    cur.execute("DROP TABLE src_equipments")
+    cur.execute("ALTER TABLE src_equipments_new RENAME TO src_equipments")
     
-    print(f"✓ equipments_img_scraping修正完了: {count}件")
+    print(f"✓ src_equipments修正完了: {count}件")
     print("  - 体力, 攻撃力, 防御力, URL_Number → INTEGER")
     print("  - 会心率, 回避率, 命中率 → REAL")
     print("  - URL_Number昇順でソート")
@@ -123,7 +123,7 @@ def verify_tables(conn):
     
     cur = conn.cursor()
     
-    for table in ["equipments_img_scraping", "non_check_equipments"]:
+    for table in ["src_equipments", "non_check_equipments"]:
         print(f"\n【{table}】")
         cur.execute(f"PRAGMA table_info({table})")
         for row in cur.fetchall():
@@ -140,8 +140,8 @@ def main():
     try:
         conn = sqlite3.connect(DB_FILE)
         
-        # equipments_img_scrapingを修正
-        fix_equipments_img_scraping(conn)
+        # src_equipmentsを修正
+        fix_src_equipments(conn)
         
         # non_check_equipmentsを修正
         fix_non_check_equipments(conn)

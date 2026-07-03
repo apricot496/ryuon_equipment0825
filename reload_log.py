@@ -23,7 +23,7 @@ def load_scraiping():
     try:
         with sqlite3.connect("ryuon_equipments.db") as conn:
             # SQLiteでdatetime()に変換してORDER
-            query = 'SELECT * FROM equipments_img_scraping ORDER BY URL_Number DESC;'
+            query = 'SELECT * FROM src_equipments ORDER BY URL_Number DESC;'
             df = pd.read_sql(query, conn)
             
     except Exception as e:
@@ -64,7 +64,7 @@ FROM '{sheet_name}' """, conn)
                             , 回避率
                             , アビリティ
                             ,URL_Number
-                              FROM equipments_img_scraping
+                              FROM src_equipments
                               """, conn)
     df_scraping["URL"] = "https://ryu.sega-online.jp/news/" + df_scraping["URL_Number"].astype(str) + "/"
 
@@ -74,7 +74,7 @@ FROM '{sheet_name}' """, conn)
     diff_df = diff_df[['装備名','装備番号','レアリティ','体力','攻撃力','防御力','会心率','命中率','回避率','アビリティ','アビリティカテゴリ','URL','_merge']]
     diff_df = diff_df[diff_df['_merge'] != 'both'].drop(columns=['_merge'])
     # # アビリティカテゴリ
-    # df_category = pd.read_sql("SELECT * FROM 'ability_category'", conn)
+    # df_category = pd.read_sql("SELECT * FROM 'mst_ability_category'", conn)
     # df_nan = pd.DataFrame({'アビリティカテゴリ分類': ['アビリティなし']})
     # df_category = pd.concat([df_category, df_nan])
 

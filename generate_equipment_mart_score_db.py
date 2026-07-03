@@ -41,9 +41,9 @@ def _to_numeric_safe(df: pd.DataFrame, cols: List[str], as_int: bool = False) ->
 
 
 def build_mart_score_dataframe(source_conn: sqlite3.Connection) -> pd.DataFrame:
-    df = pd.read_sql("SELECT * FROM mart_equipments_master", source_conn)
+    df = pd.read_sql("SELECT * FROM mart_equipments", source_conn)
 
-    # 装備番号は ryuon_equipments.db の mart_equipments_master 由来を明示
+    # 装備番号は ryuon_equipments.db の mart_equipments 由来を明示
     # 装備番号は文字列ID（例: 0_0_0_001）なので文字列として保持
     # 欠損時は同一(装備名, レアリティ)の代表値で補完
     if "装備番号" in df.columns:

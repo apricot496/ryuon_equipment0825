@@ -139,7 +139,7 @@ def _get_confirmed_tables(conn: sqlite3.Connection) -> list[str]:
 def load_fix_equipments_df(conn: sqlite3.Connection) -> pd.DataFrame:
     """
     confirmed_* テーブルから全ての確定済み装備を読み込む（動的検出）
-    注：mart_equipments_masterは使用しない（unconfirmed_equipmentsを含むため循環参照になる）
+    注：mart_equipmentsは使用しない（unconfirmed_equipmentsを含むため循環参照になる）
     """
     confirmed_tables = _get_confirmed_tables(conn)
     dfs = []
@@ -158,7 +158,7 @@ def build_unconfirmed_candidates_df(conn: sqlite3.Connection) -> pd.DataFrame:
     fix_df = load_fix_equipments_df(conn)
     fix_keys = fix_df[["装備名", "レアリティ"]].drop_duplicates()
 
-    scraped_df = _read_sql_table(conn, "equipments_img_scraping")
+    scraped_df = _read_sql_table(conn, "src_equipments")
 
     merged = scraped_df.merge(
         fix_keys,

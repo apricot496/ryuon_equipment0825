@@ -336,7 +336,7 @@ def calculate_effect_score(
     cur = conn.cursor()
     cur.execute("""
         SELECT アビリティ, アビリティカテゴリ
-        FROM mart_equipments_master
+        FROM mart_equipments
                 WHERE 装備種類 = ?
                     AND アビリティ IS NOT NULL
           AND アビリティ != ''
@@ -543,7 +543,7 @@ def calculate_category_rarity(category: str, equipment_type: str) -> float:
     # 同じ装備種類内で同じカテゴリの装備数を取得
     cur.execute("""
         SELECT COUNT(*) 
-        FROM mart_equipments_master 
+        FROM mart_equipments 
         WHERE アビリティカテゴリ = ? AND 装備種類 = ?
     """, (category, equipment_type))
     count = cur.fetchone()[0]
@@ -575,7 +575,7 @@ def calculate_effect_rank(ability_text: str, category: str, equipment_type: str)
     # 同じ装備種類内で同じカテゴリの全装備の効果量を取得
     cur.execute("""
         SELECT アビリティ 
-        FROM mart_equipments_master 
+        FROM mart_equipments 
         WHERE アビリティカテゴリ = ? AND 装備種類 = ? AND アビリティ IS NOT NULL
     """, (category, equipment_type))
     

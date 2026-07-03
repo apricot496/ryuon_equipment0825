@@ -1,5 +1,5 @@
 """
-mart_equipments_masterをスコアと共にExcelにエクスポート
+mart_equipmentsをスコアと共にExcelにエクスポート
 評価指標の見直し用
 """
 import sqlite3
@@ -55,7 +55,7 @@ def calculate_status_rankings(conn: sqlite3.Connection, equipment: Dict) -> Dict
             # 体力・攻撃力・防御力: 同装備種類 AND 同レアリティ
             df = pd.read_sql(f"""
                 SELECT {status}, 装備名, レアリティ
-                FROM mart_equipments_master
+                FROM mart_equipments
                 WHERE 装備種類 = ? AND レアリティ = ? AND {status} IS NOT NULL AND {status} > 0
                 ORDER BY {status} DESC
             """, conn, params=(equipment_type, rarity))
@@ -63,7 +63,7 @@ def calculate_status_rankings(conn: sqlite3.Connection, equipment: Dict) -> Dict
             # 会心率・回避率・命中率: 同装備種類のみ
             df = pd.read_sql(f"""
                 SELECT {status}, 装備名, レアリティ
-                FROM mart_equipments_master
+                FROM mart_equipments
                 WHERE 装備種類 = ? AND {status} IS NOT NULL AND {status} > 0
                 ORDER BY {status} DESC
             """, conn, params=(equipment_type,))
@@ -139,7 +139,7 @@ def calculate_build_type_combination_rankings(conn: sqlite3.Connection, equipmen
 
             df = pd.read_sql(f"""
                 SELECT {status1}, {status2}, 装備名, レアリティ
-                FROM mart_equipments_master
+                FROM mart_equipments
                 WHERE 装備種類 = ?
                 AND レアリティ = ?
                 AND {status1} IS NOT NULL AND {status1} > 0
@@ -262,11 +262,11 @@ def calculate_overall_status_score(rankings: Dict, build_type_rankings: Dict = N
 
 
 def export_to_excel(output_path: str = "mock_評価/mart_with_scores.xlsx"):
-    """mart_equipments_masterをスコア付きでExcelにエクスポート"""
+    """mart_equipmentsをスコア付きでExcelにエクスポート"""
     conn = sqlite3.connect(DB_FILE)
     
-    # mart_equipments_masterを読み込む
-    df = pd.read_sql("SELECT * FROM mart_equipments_master", conn)
+    # mart_equipmentsを読み込む
+    df = pd.read_sql("SELECT * FROM mart_equipments", conn)
     
     print(f"装備データ読み込み: {len(df)}件")
     

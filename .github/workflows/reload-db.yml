@@ -77,7 +77,7 @@ jobs:
           GCP_UNIVERSE_DOMAIN: ${{ secrets.GCP_UNIVERSE_DOMAIN }}
         run: python 04_export_unconfirmed_to_gsheet.py --no-write-db
 
-      - name: 05 Create mart_equipments_master table
+      - name: 05 Create mart_equipments table
         run: python 05_create_mart_master.py
 
       - name: 06 Update load_log.csv

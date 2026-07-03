@@ -18,7 +18,7 @@ def get_latest_equipments(conn: sqlite3.Connection, limit: int = 10):
     """
     URL_Numberが最も大きい装備をlimit件取得
     
-    equipments_img_scrapingをベースに取得するため、
+    src_equipmentsをベースに取得するため、
     スプレッドシート未登録の装備（イベント報酬装備など）も含まれる
     """
     query = """
@@ -26,7 +26,7 @@ def get_latest_equipments(conn: sqlite3.Connection, limit: int = 10):
         s.装備名,
         s.レアリティ,
         s.URL_Number
-    FROM equipments_img_scraping s
+    FROM src_equipments s
     WHERE s.URL_Number IS NOT NULL AND s.URL_Number != 0
     ORDER BY CAST(s.URL_Number AS INTEGER) DESC
     LIMIT ?

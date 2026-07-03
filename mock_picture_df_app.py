@@ -6,7 +6,7 @@ DB_PATH = "ryuon_equipments.db"
 
 # DB接続
 conn = sqlite3.connect(DB_PATH)
-df = pd.read_sql(f"SELECT * FROM equipments_img_scraping", conn)
+df = pd.read_sql(f"SELECT * FROM src_equipments", conn)
 conn.close()
 
 col_cfg = {

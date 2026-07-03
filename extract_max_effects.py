@@ -37,7 +37,7 @@ def get_all_abilities_with_max_effects():
     
     cur.execute("""
         SELECT 装備名, レアリティ, アビリティカテゴリ, アビリティ, 装備種類
-        FROM mart_equipments_master
+        FROM mart_equipments
         WHERE アビリティ IS NOT NULL AND アビリティ != ''
         ORDER BY レアリティ DESC, 装備名
     """)
@@ -109,7 +109,7 @@ def build_ability_score_rows():
     cur = conn.cursor()
     cur.execute("""
         SELECT 装備名, レアリティ, 装備種類, アビリティカテゴリ, アビリティ
-        FROM mart_equipments_master
+        FROM mart_equipments
         WHERE アビリティ IS NOT NULL AND アビリティ != ''
         ORDER BY レアリティ DESC, 装備名
     """)

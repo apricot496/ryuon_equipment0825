@@ -5,10 +5,10 @@ DB_FILE = "ryuon_equipments.db"
 EQUIP_TYPES = ["武器", "防具", "装飾"]
 
 
-def create_mart_equipments_master():
+def create_mart_equipments():
     """
     confirmed_* テーブル（動的検出）と unconfirmed_equipments を統合して
-    mart_equipments_master テーブルを作成する
+    mart_equipments テーブルを作成する
     """
     conn = sqlite3.connect(DB_FILE)
     cur = conn.cursor()
@@ -65,19 +65,19 @@ def create_mart_equipments_master():
         if col in master_df.columns:
             master_df[col] = master_df[col].astype(str).replace("nan", None)
 
-    print("Creating mart_equipments_master table...")
-    cur.execute("DROP TABLE IF EXISTS mart_equipments_master")
-    master_df.to_sql("mart_equipments_master", conn, if_exists="replace", index=False)
+    print("Creating mart_equipments table...")
+    cur.execute("DROP TABLE IF EXISTS mart_equipments")
+    master_df.to_sql("mart_equipments", conn, if_exists="replace", index=False)
 
-    count = cur.execute("SELECT COUNT(*) FROM mart_equipments_master").fetchone()[0]
-    print(f"✓ mart_equipments_master に {count} 件のレコードを作成しました")
+    count = cur.execute("SELECT COUNT(*) FROM mart_equipments").fetchone()[0]
+    print(f"✓ mart_equipments に {count} 件のレコードを作成しました")
 
-    for row in cur.execute("SELECT 装備種類, COUNT(*) FROM mart_equipments_master GROUP BY 装備種類"):
+    for row in cur.execute("SELECT 装備種類, COUNT(*) FROM mart_equipments GROUP BY 装備種類"):
         print(f"  - {row[0]}: {row[1]}件")
 
     conn.close()
-    print("\nmart_equipments_master 作成完了!")
+    print("\nmart_equipments 作成完了!")
 
 
 if __name__ == "__main__":
-    create_mart_equipments_master()
+    create_mart_equipments()

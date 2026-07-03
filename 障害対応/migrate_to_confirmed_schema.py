@@ -5,7 +5,7 @@
   DB:
     1. non_check_equipments → unconfirmed_equipments にリネーム
     2. 旧確認済みテーブル (ur武器 / ksr武器 / ssr武器 / ... 9件) を削除
-    3. mart_equipments_master を削除（次回 create_mart_equipments_master.py で再構築）
+    3. mart_equipments を削除（次回 create_mart_equipments.py で再構築）
   SS:
     4. non_check_equipments シート → unconfirmed_equipments にリネーム
 """
@@ -53,13 +53,13 @@ def migrate_db():
         else:
             print(f"⚠️  DB: {table} は存在しません（スキップ）")
 
-    # 3. mart_equipments_master を削除（要再構築）
+    # 3. mart_equipments を削除（要再構築）
     cur.execute(
-        "SELECT name FROM sqlite_master WHERE type='table' AND name='mart_equipments_master'"
+        "SELECT name FROM sqlite_master WHERE type='table' AND name='mart_equipments'"
     )
     if cur.fetchone():
-        cur.execute("DROP TABLE mart_equipments_master")
-        print("🗑️  DB: mart_equipments_master を削除しました（create_mart_equipments_master.py で再構築してください）")
+        cur.execute("DROP TABLE mart_equipments")
+        print("🗑️  DB: mart_equipments を削除しました（create_mart_equipments.py で再構築してください）")
 
     conn.commit()
     conn.close()
@@ -104,4 +104,4 @@ if __name__ == "__main__":
     migrate_db()
     print("\n=== SS 移行 ===")
     migrate_ss()
-    print("\n移行完了。次に create_mart_equipments_master.py を実行してください。")
+    print("\n移行完了。次に create_mart_equipments.py を実行してください。")

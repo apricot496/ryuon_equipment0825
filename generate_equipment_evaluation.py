@@ -30,20 +30,20 @@ def get_equipment_data(conn: sqlite3.Connection, equipment_name: str, rarity: st
     指定された装備のデータを取得
     
     優先順位：
-    1. mart_equipments_masterにある場合はそちらを使用（完全なデータ）
-    2. equipments_img_scrapingのみにある場合はそちらを使用（装備種類などは不明）
+    1. mart_equipmentsにある場合はそちらを使用（完全なデータ）
+    2. src_equipmentsのみにある場合はそちらを使用（装備種類などは不明）
     """
     cur = conn.cursor()
     
-    # まずmart_equipments_masterから取得を試みる
+    # まずmart_equipmentsから取得を試みる
     cur.execute("""
         SELECT 
             m.*,
             s.URL_Number,
             s.IMG_URL,
             s.画像名
-        FROM mart_equipments_master m
-        LEFT JOIN equipments_img_scraping s 
+        FROM mart_equipments m
+        LEFT JOIN src_equipments s 
             ON m.装備名 = s.装備名 AND m.レアリティ = s.レアリティ
         WHERE m.装備名 = ? AND m.レアリティ = ?
     """, (equipment_name, rarity))
@@ -53,7 +53,7 @@ def get_equipment_data(conn: sqlite3.Connection, equipment_name: str, rarity: st
         columns = [d[0] for d in cur.description]
         return dict(zip(columns, row))
     
-    # mart_equipments_masterになければ、equipments_img_scrapingから取得
+    # mart_equipmentsになければ、src_equipmentsから取得
     cur.execute("""
         SELECT 
             装備名,
@@ -71,7 +71,7 @@ def get_equipment_data(conn: sqlite3.Connection, equipment_name: str, rarity: st
             NULL as 装備種類,
             NULL as アビリティカテゴリ,
             NULL as 装備番号
-        FROM equipments_img_scraping
+        FROM src_equipments
         WHERE 装備名 = ? AND レアリティ = ?
     """, (equipment_name, rarity))
     
@@ -117,7 +117,7 @@ def calculate_status_rankings(conn: sqlite3.Connection, equipment: Dict) -> Dict
             # 体力・攻撃力・防御力: 同装備種類 AND 同レアリティ
             df = pd.read_sql(f"""
                 SELECT {status}, 装備名, レアリティ
-                FROM mart_equipments_master
+                FROM mart_equipments
                 WHERE 装備種類 = ? AND レアリティ = ? AND {status} IS NOT NULL AND {status} > 0
                 ORDER BY {status} DESC
             """, conn, params=(equipment_type, rarity))
@@ -125,7 +125,7 @@ def calculate_status_rankings(conn: sqlite3.Connection, equipment: Dict) -> Dict
             # 会心率・回避率・命中率: 同装備種類のみ
             df = pd.read_sql(f"""
                 SELECT {status}, 装備名, レアリティ
-                FROM mart_equipments_master
+                FROM mart_equipments
                 WHERE 装備種類 = ? AND {status} IS NOT NULL AND {status} > 0
                 ORDER BY {status} DESC
             """, conn, params=(equipment_type,))
@@ -215,7 +215,7 @@ def calculate_build_type_combination_rankings(conn: sqlite3.Connection, equipmen
             # 同種装備・同レアリティ・同ステータス組み合わせ（2ステータスを持つ）で比較
             df = pd.read_sql(f"""
                 SELECT {status1}, {status2}, 装備名, レアリティ
-                FROM mart_equipments_master
+                FROM mart_equipments
                 WHERE 装備種類 = ?
                 AND レアリティ = ?
                 AND {status1} IS NOT NULL AND {status1} > 0
@@ -395,8 +395,8 @@ def find_superior_equipment(conn: sqlite3.Connection, equipment: Dict, ability_s
         s.URL_Number,
         s.画像名 AS img_name,
         s.IMG_URL AS img_url
-    FROM mart_equipments_master m
-    LEFT JOIN equipments_img_scraping s ON m.装備名 = s.装備名 AND m.レアリティ = s.レアリティ
+    FROM mart_equipments m
+    LEFT JOIN src_equipments s ON m.装備名 = s.装備名 AND m.レアリティ = s.レアリティ
     WHERE m.装備種類 = ?
     AND NOT (m.装備名 = ? AND m.レアリティ = ?)
     """
@@ -1121,7 +1121,7 @@ def generate_all_evaluations(generate_images: bool = True):
     # 全装備を取得
     df = pd.read_sql("""
         SELECT 装備名, レアリティ, 装備種類
-        FROM mart_equipments_master
+        FROM mart_equipments
         ORDER BY 装備種類, レアリティ, 装備名
     """, conn)
     
@@ -1167,7 +1167,7 @@ def generate_single_evaluation(equipment_name: str, rarity: str = None, generate
     # レアリティ指定がない場合は全レアリティを取得
     if rarity is None:
         df = pd.read_sql("""
-            SELECT レアリティ FROM mart_equipments_master
+            SELECT レアリティ FROM mart_equipments
             WHERE 装備名 = ?
         """, conn, params=(equipment_name,))
         rarities = df["レアリティ"].tolist()

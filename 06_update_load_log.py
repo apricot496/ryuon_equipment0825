@@ -9,7 +9,7 @@ DB_PATH = Path("ryuon_equipments.db")
 CSV_PATH = Path("load_log.csv")
 JST = timezone(timedelta(hours=9))
 
-FIXED_TABLES = ["ability_category", "unconfirmed_equipments"]
+FIXED_TABLES = ["mst_ability_category", "unconfirmed_equipments"]
 
 
 def fetch_counts() -> dict[str, int]:
