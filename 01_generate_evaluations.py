@@ -61,7 +61,7 @@ def main():
     print("\n[1/2] equipments_mart_score.db を生成します...")
     try:
         subprocess.run(
-            [sys.executable, "generate_equipments_mart_score_db.py"],
+            [sys.executable, "generate_equipment_mart_score_db.py"],
             check=True,
         )
     except subprocess.CalledProcessError as e:
